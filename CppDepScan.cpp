@@ -54,6 +54,13 @@ template <typename T> void foreach (const T& range, const std::function<void(con
 	}
 }
 
+enum class EIncludeStatus : uint8_t
+{
+	Allowed,
+	Forbidden,
+	Unresolved,
+};
+
 struct Include
 {
 	std::string from;
@@ -63,35 +70,35 @@ struct Include
 
 	std::ostream& toJsonString(std::ostream& os) const
 	{
-		os << "{\n";
-		os << R"(  "from": ")" << escapeJson(from) << "\",\n";
-		os << R"(  "allowedToList": [)";
+		os << "\n  {\n";
+		os << R"(    "from": ")" << escapeJson(from) << "\",\n";
+		os << R"(    "allowedToList": [)";
 		auto func = [&](const std::string& value, bool isLast)
 		{
-			os << escapeJson(value);
+			os << '"' << escapeJson(value) << '"';
 			if (!isLast) os << ", ";
 		};
 		foreach (allowedToList, func);
 		os << "],\n";
-		os << R"(  "forbiddenToList": [)";
+		os << R"(    "forbiddenToList": [)";
 		foreach (forbiddenToList, func);
 		os << "],\n";
-		os << R"(  "unresolvedToList": [)";
+		os << R"(    "unresolvedToList": [)";
 		foreach (unresolvedToList, func);
 		os << "]\n";
-		os << "}";
+		os << "  }";
 		return os;
 	}
 
-	std::ostream& toD2String(std::ostream& os, bool isSpecified) const
+	std::ostream& toD2String(std::ostream& os, EIncludeStatus status, bool isSpecified) const
 	{
 		// TODO: unspecified color
-		os << "\n# allowed:\n";
-		for (const auto& to : allowedToList) os << from << " -> " << to << "\n";
-		os << "\n# forbidden:\n";
-		for (const auto& to : forbiddenToList) os << from << " -> " << to << "\n"; // TODO: forbidden color
-		os << "\n# unresolved:\n";
-		for (const auto& to : unresolvedToList) os << "# " << from << " -> " << to << "\n";
+		if (status == EIncludeStatus::Allowed)
+			for (const auto& to : allowedToList) os << from << " -> " << to << "\n";
+		else if (status == EIncludeStatus::Forbidden)
+			for (const auto& to : forbiddenToList) os << from << " -> " << to << "\n"; // TODO: forbidden color
+		else
+			for (const auto& to : unresolvedToList) os << "# " << from << " -> " << to << "\n";
 		return os;
 	}
 };
@@ -124,13 +131,23 @@ struct Output
 		if (!specifiedIncludeList.empty())
 		{
 			os << "# specified include list:\n";
-			for (const auto& include : specifiedIncludeList) include.toD2String(os, true);
+			os << "\n# allowed:\n";
+			for (const auto& include : specifiedIncludeList) include.toD2String(os, EIncludeStatus::Allowed, true);
+			os << "\n# forbidden:\n";
+			for (const auto& include : specifiedIncludeList) include.toD2String(os, EIncludeStatus::Forbidden, true);
+			os << "\n# unresolved:\n";
+			for (const auto& include : specifiedIncludeList) include.toD2String(os, EIncludeStatus::Unresolved, true);
 			os << "\n";
 		}
 		if (!unspecifiedIncludeList.empty())
 		{
-			os << "# unspecified include list:\n";
-			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, false);
+			os << "\n# unspecified include list:\n";
+			os << "\n# allowed:\n";
+			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, EIncludeStatus::Allowed, false);
+			os << "\n# forbidden:\n";
+			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, EIncludeStatus::Forbidden, false);
+			os << "\n# unresolved:\n";
+			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, EIncludeStatus::Unresolved, false);
 			os << "\n";
 		}
 		return os;
@@ -319,14 +336,14 @@ static Output getOutput(const Config& config)
 			if (fs::exists(includePath)) include_.allowedToList.push_back(pathToDotted(includePath));
 			else
 			{
-				bool bResolved = false;
+				bool isResolved = false;
 				for (const auto& includePath : config.includePathList)
 				{
 					const fs::path& newIncludePath = includePath / fs::path(include);
 					if (fs::exists(newIncludePath))
 					{
 						include_.allowedToList.push_back(pathToDotted(newIncludePath));
-						bResolved = true;
+						isResolved = true;
 						break;
 					}
 				}
@@ -336,11 +353,11 @@ static Output getOutput(const Config& config)
 					if (fs::exists(newIncludePath))
 					{
 						if (config.bIncludeStdLib) include_.allowedToList.push_back(include);
-						bResolved = true;
+						isResolved = true;
 						break;
 					}
 				}
-				if (!bResolved) include_.unresolvedToList.push_back(include);
+				if (!isResolved) include_.unresolvedToList.push_back(include);
 			}
 		}
 		result.specifiedIncludeList.push_back(std::move(include_));
@@ -393,7 +410,13 @@ static Config parseArgs(int argc, char** argv)
 			usage(argv[0]);
 			std::exit(0);
 		}
-		else if (!a.empty() && a[0] != '-')
+		else if (!a.empty() && a[0] == '-')
+		{
+			std::cerr << "Error: unknown option: " << a << "\n";
+			usage(argv[0]);
+			std::exit(1);
+		}
+		else
 			c.scanPathList.emplace_back(a);
 	}
 	c.stdIncludePathList = getStdIncludePathList();
@@ -422,7 +445,7 @@ int main(int argc, char** argv)
 		for (const auto& outputPath : cfg.outputPathList)
 		{
 			std::string_view subStr;
-			std::filesystem::create_directories(outputPath.parent_path());
+			if (outputPath.has_parent_path()) std::filesystem::create_directories(outputPath.parent_path());
 			std::ofstream ofs(outputPath);
 			if (!ofs.is_open())
 			{
