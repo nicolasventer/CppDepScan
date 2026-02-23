@@ -3,6 +3,7 @@
 #include <fstream>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -22,9 +23,10 @@ struct Config
 	std::vector<fs::path> includePathList;
 	std::vector<fs::path> excludePathList;
 	std::vector<fs::path> forceIncludePathList;
-	std::vector<fs::path> outputPathList; // empty = stdout
-	bool bIncludeStdLib = false;		  // default: false
-	bool bOutputJson = false;			  // default: D2 lang
+	std::vector<fs::path> outputPathList;							 // empty = stdout
+	std::map<fs::path, std::vector<fs::path>> allowedIncludeListMap; // from -> to list
+	bool bIncludeStdLib = false;									 // default: false
+	bool bOutputJson = false;										 // default: D2 lang
 
 	// automatically filled
 	std::vector<std::string> stdIncludePathList;
@@ -92,6 +94,7 @@ struct Include
 
 	std::ostream& toD2String(std::ostream& os, EIncludeStatus status, bool isSpecified) const
 	{
+		// TODO: write file even if no includes are found
 		// TODO: unspecified color
 		if (status == EIncludeStatus::Allowed)
 			for (const auto& to : allowedToList) os << from << " -> " << to << "\n";
@@ -106,7 +109,7 @@ struct Include
 struct Output
 {
 	std::vector<Include> specifiedIncludeList;
-	std::vector<Include> unspecifiedIncludeList;
+	std::vector<Include> unspecifiedIncludeList; // TODO: change type to UnspecifiedInclude
 
 	std::ostream& toJsonString(std::ostream& os) const
 	{
@@ -142,12 +145,7 @@ struct Output
 		if (!unspecifiedIncludeList.empty())
 		{
 			os << "\n# unspecified include list:\n";
-			os << "\n# allowed:\n";
 			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, EIncludeStatus::Allowed, false);
-			os << "\n# forbidden:\n";
-			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, EIncludeStatus::Forbidden, false);
-			os << "\n# unresolved:\n";
-			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, EIncludeStatus::Unresolved, false);
 			os << "\n";
 		}
 		return os;
@@ -303,6 +301,14 @@ static std::vector<std::string> getStdIncludePathList()
 	return pathList;
 }
 
+static const std::vector<fs::path>* getAllowedToList(
+	const std::map<fs::path, std::vector<fs::path>>& allowedIncludeListMap, const fs::path& cppPath)
+{
+	for (const auto& [from, toList] : allowedIncludeListMap)
+		if (utility::isPathInclude(cppPath, from)) return &toList;
+	return nullptr;
+}
+
 static Output getOutput(const Config& config)
 {
 	using namespace utility;
@@ -319,6 +325,7 @@ static Output getOutput(const Config& config)
 	{
 		std::cout << "\r[" << (i + 1) << "/" << cppPathList.size() << "]" << std::flush;
 		const auto& cppPath = cppPathList[i];
+		const auto* allowedToList = getAllowedToList(config.allowedIncludeListMap, cppPath);
 		const auto dottedPath = pathToDotted(cppPath);
 		Include include_;
 		include_.from = dottedPath;
@@ -342,7 +349,21 @@ static Output getOutput(const Config& config)
 					const fs::path& newIncludePath = includePath / fs::path(include);
 					if (fs::exists(newIncludePath))
 					{
-						include_.allowedToList.push_back(pathToDotted(newIncludePath));
+						bool isAllowed = allowedToList == nullptr;
+						if (allowedToList != nullptr)
+						{
+							for (const auto& allowedTo : *allowedToList)
+							{
+								if (utility::isPathInclude(newIncludePath, allowedTo))
+								{
+									isAllowed = true;
+									break;
+								}
+							}
+						}
+						if (isAllowed) include_.allowedToList.push_back(pathToDotted(newIncludePath));
+						else
+							include_.forbiddenToList.push_back(pathToDotted(newIncludePath));
 						isResolved = true;
 						break;
 					}
@@ -360,7 +381,11 @@ static Output getOutput(const Config& config)
 				if (!isResolved) include_.unresolvedToList.push_back(include);
 			}
 		}
-		result.specifiedIncludeList.push_back(std::move(include_));
+		bool isSpecified = config.allowedIncludeListMap.empty() || allowedToList != nullptr;
+
+		if (isSpecified) result.specifiedIncludeList.push_back(std::move(include_));
+		else
+			result.unspecifiedIncludeList.push_back(std::move(include_));
 	}
 
 	std::cout << "\nDone\n";
@@ -372,7 +397,8 @@ static void usage(const char* prog)
 {
 	std::cerr << "Usage: " << prog << " [options] <scan_path> [scan_path ...]\n"
 			  << "  -I <path>     Add include path for resolution (folder or file)\n"
-			  << "  -e <path>     Exclude path (folder or file); use -e !<path> to force-include\n"
+			  << "  -e <path>     Exclude path (folder or file); may be repeated; use -e !<path> to force-include\n"
+			  << "  -A, --allowed <from> <to>  Allowed include: <from> may include <to>; may be repeated\n"
 			  << "  --stdlib      Include standard library headers in output (default: false)\n"
 			  << "  --json        Output JSON (default: D2 lang)\n"
 			  << "  -o <file>     Write output to file; may be repeated; .json → JSON, else D2 (default: stdout)\n"
@@ -388,16 +414,24 @@ static Config parseArgs(int argc, char** argv)
 		if (a == "-I" && i + 1 < argc)
 		{
 			std::string path = argv[++i];
-			if (path.back() == '/') path = path.substr(0, path.size() - 1);
+			if (path.back() == '/') path.pop_back();
 			c.includePathList.emplace_back(path);
 		}
 		else if (a == "-e" && i + 1 < argc)
 		{
 			std::string path = argv[++i];
-			if (path.back() == '/') path = path.substr(0, path.size() - 1);
+			if (path.back() == '/') path.pop_back();
 			if (path.front() == '!') c.forceIncludePathList.emplace_back(path.substr(1));
 			else
 				c.excludePathList.emplace_back(path);
+		}
+		else if ((a == "-A" || a == "--allowed") && i + 2 < argc)
+		{
+			std::string fromStr = argv[++i];
+			std::string toStr = argv[++i];
+			if (!fromStr.empty() && fromStr.back() == '/') fromStr.pop_back();
+			if (!toStr.empty() && toStr.back() == '/') toStr.pop_back();
+			c.allowedIncludeListMap[fs::path(fromStr)].emplace_back(toStr);
 		}
 		else if (a == "-o" && i + 1 < argc)
 			c.outputPathList.emplace_back(argv[++i]);

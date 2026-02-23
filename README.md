@@ -1,18 +1,32 @@
 # CppDepScan
 
-C++ include detection: scan paths, resolve `#include` directives, output include graph as JSON and/or D2.
+C++ include detection: scan paths, resolve `#include` directives, output the include graph as JSON and/or [D2](https://d2lang.com/).
+
+## Requirements
+
+- C++17 compiler (e.g. GCC/Clang with `-std=c++17`, or MSVC with `/std:c++17`)
 
 ## Build
+
+**Windows (cmd):**
+
+```batch
+build.bat
+```
+
+**Windows (manual) or Git Bash / WSL:**
+
+```bash
+g++ -std=c++17 -O2 -o CppDepScan.exe CppDepScan.cpp
+```
+
+**Linux / macOS:**
 
 ```bash
 ./build.sh
 ```
 
-Produces the `CppDepScan` executable. Requires a C++17 compiler (e.g. g++ with `-std=c++17`). On Windows you can use Git Bash, WSL, or:
-
-```bash
-g++ -std=c++17 -O2 -o CppDepScan.exe CppDepScan.cpp
-```
+Each produces the `CppDepScan` (or `CppDepScan.exe`) executable.
 
 ## Usage
 
@@ -22,9 +36,9 @@ CppDepScan [options] <scan_path> [scan_path ...]
 
 | Option         | Description                                                                                                                         |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `-I <path>`    | Add include path for resolution (folder or file). Like compiler `-I`.                                                               |
-| `-e <path>`    | Exclude path (folder or file); paths under this are not scanned. Use `-e !<path>` to force-include (scan even if under an exclude). |
-| `--stdlib`     | Include standard library headers in the output (default: false).                                                                    |
+| `-I <path>`    | Add include path for resolution (folder or file). Like compiler `-I`. May be repeated.                                               |
+| `-e <path>`    | Exclude path (folder or file); paths under this are not scanned. Use `-e !<path>` to force-include (scan even if under an exclude).  |
+| `--stdlib`     | Include standard library headers in the output (default: false).                                                                     |
 | `--json`       | Output JSON. Default format when neither `--json` nor `-o` implies format is D2.                                                    |
 | `-o <file>`    | Write output to file (default: stdout). May be repeated. Format: `.json` → JSON, otherwise D2.                                      |
 | `-h`, `--help` | Print help.                                                                                                                         |
@@ -65,3 +79,9 @@ CppDepScan [options] <scan_path> [scan_path ...]
 # Both JSON and D2 via multiple -o (format by extension)
 ./CppDepScan -I src -e build -o out.json -o graph.d2 src
 ```
+
+On Windows with `CppDepScan.exe`, use the same options (e.g. `CppDepScan.exe -I src -e build -o out.json src`).
+
+## License
+
+MIT License. See [LICENSE](LICENSE).
