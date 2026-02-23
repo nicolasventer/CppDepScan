@@ -20,42 +20,48 @@ g++ -std=c++17 -O2 -o CppDepScan.exe CppDepScan.cpp
 CppDepScan [options] <scan_path> [scan_path ...]
 ```
 
-| Option         | Description                                                                |
-| -------------- | -------------------------------------------------------------------------- |
-| `-I <path>`    | Add include path for resolution (folder or file). Like compiler `-I`.      |
-| `-e <path>`    | Exclude path (folder or file); paths under this are skipped.               |
-| `--stdlib`     | Consider standard library when resolving `<...>` includes.                 |
-| `--json`       | Output JSON.                                                               |
-| `--d2`         | Output D2 lang (default if no format given).                               |
-| `-o <file>`    | Write output to file. With both `--json` and `--d2`, `-o` applies to JSON. |
-| `-h`, `--help` | Print help.                                                                |
+| Option         | Description                                                                                                                         |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `-I <path>`    | Add include path for resolution (folder or file). Like compiler `-I`.                                                               |
+| `-e <path>`    | Exclude path (folder or file); paths under this are not scanned. Use `-e !<path>` to force-include (scan even if under an exclude). |
+| `--stdlib`     | Include standard library headers in the output (default: false).                                                                    |
+| `--json`       | Output JSON. Default format when neither `--json` nor `-o` implies format is D2.                                                    |
+| `-o <file>`    | Write output to file (default: stdout). May be repeated. Format: `.json` → JSON, otherwise D2.                                      |
+| `-h`, `--help` | Print help.                                                                                                                         |
 
-- **Scan paths**: list of files or directories to scan for C/C++ sources (`.c`, `.cpp`, `.cc`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`, `.h++`).
+- **Scan paths**: files or directories to scan for C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`, `.h++`).
 - **Include paths**: used to resolve `#include "..."` and `#include <...>` (current file’s directory is always tried first for `"..."`).
-- **Exclude paths**: any file or directory under these is not scanned.
+- **Exclude paths**: any file or directory under these is not scanned. Prefix with `!` to force-include that path even if it lies under an exclude.
 
 ## Output
 
 ### JSON
 
-- `includeList`: array of `{ "from", "to" }` (from/to as dotted paths; `to` is an array of resolved includes).
-- `unresolvedIncludeList`: array of `{ "from", "to" }` for includes that could not be resolved.
+- `specifiedIncludeList`: array of objects with `"from"` (dotted path), `"allowedToList"`, `"forbiddenToList"`, `"unresolvedToList"` (arrays of dotted paths or raw include names).
+- `unspecifiedIncludeList`: same shape (currently unused).
 
 ### D2
 
-- **# include list**: edges `from -> to` for resolved includes (dotted paths).
-- **# unresolved include list**: edges for includes that could not be resolved.
+- **# specified include list** / **# unspecified include list**: for each file, **# allowed:** edges `from -> to`, **# forbidden:** edges, **# unresolved:** commented-out edges for unresolved includes.
 
-## Example
-
-<!-- TODO: test readme example command -->
+## Examples
 
 ```bash
-./CppDepScan -Isrc -Isrc/include -e build -e external --json --d2 -o out.json src
-# D2 goes to stdout; JSON to out.json
+# D2 to stdout (default)
+./CppDepScan -I src -I src/include -e build -e external src
 ```
 
 ```bash
-./CppDepScan -Isrc --d2 -o graph.d2 src
-# Only D2, written to graph.d2
+# JSON to file
+./CppDepScan -I src -e build --json -o out.json src
+```
+
+```bash
+# D2 to file (extension other than .json)
+./CppDepScan -I src -o graph.d2 src
+```
+
+```bash
+# Both JSON and D2 via multiple -o (format by extension)
+./CppDepScan -I src -e build -o out.json -o graph.d2 src
 ```

@@ -1,9 +1,18 @@
+#include <array>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <vector>
+
+#ifdef _WIN32
+#include <io.h>
+#define popen  _popen
+#define pclose _pclose
+#endif
 
 namespace fs = std::filesystem;
 
@@ -12,10 +21,13 @@ struct Config
 	std::vector<fs::path> scanPathList;
 	std::vector<fs::path> includePathList;
 	std::vector<fs::path> excludePathList;
-	bool includeStdLib = false;
-	bool outputJson = false;
-	bool outputD2 = false;
-	fs::path outputPath; // empty = stdout
+	std::vector<fs::path> forceIncludePathList;
+	std::vector<fs::path> outputPathList; // empty = stdout
+	bool bIncludeStdLib = false;		  // default: false
+	bool bOutputJson = false;			  // default: D2 lang
+
+	// automatically filled
+	std::vector<std::string> stdIncludePathList;
 };
 
 std::string escapeJson(const std::string& s)
@@ -30,70 +42,97 @@ std::string escapeJson(const std::string& s)
 	return result;
 }
 
+template <typename T> void foreach (const T& range, const std::function<void(const typename T::value_type&, bool)>& func)
+{
+	auto it = range.begin();
+	auto itEnd = range.end();
+	while (it != itEnd)
+	{
+		const auto& value = *it;
+		++it;
+		func(value, it == itEnd);
+	}
+}
+
 struct Include
 {
 	std::string from;
-	std::vector<std::string> toList; // TODO: see if adding status here
+	std::vector<std::string> allowedToList;
+	std::vector<std::string> forbiddenToList;
+	std::vector<std::string> unresolvedToList;
 
-	std::ostream& toJsonString(std::ostream& os, const std::string& indent) const
+	std::ostream& toJsonString(std::ostream& os) const
 	{
-		os << indent << "{\n";
-		os << indent << R"(  "from": ")" << escapeJson(from) << "\",\n";
-		os << indent << "  \"to\": [\n";
-		for (size_t i = 0; i < toList.size(); ++i)
+		os << "{\n";
+		os << R"(  "from": ")" << escapeJson(from) << "\",\n";
+		os << R"(  "allowedToList": [)";
+		auto func = [&](const std::string& value, bool isLast)
 		{
-			os << indent << "    \"" << escapeJson(toList[i]) << "\"";
-			if (i == toList.size() - 1) os << "\n";
-			else
-				os << ",\n";
-		}
-		os << indent << "  ]\n";
-		os << indent << "}";
+			os << escapeJson(value);
+			if (!isLast) os << ", ";
+		};
+		foreach (allowedToList, func);
+		os << "],\n";
+		os << R"(  "forbiddenToList": [)";
+		foreach (forbiddenToList, func);
+		os << "],\n";
+		os << R"(  "unresolvedToList": [)";
+		foreach (unresolvedToList, func);
+		os << "]\n";
+		os << "}";
 		return os;
 	}
 
-	std::ostream& toD2String(std::ostream& os) const
+	std::ostream& toD2String(std::ostream& os, bool isSpecified) const
 	{
-		for (const auto& to : toList) os << from << " -> " << to << "\n";
+		// TODO: unspecified color
+		os << "\n# allowed:\n";
+		for (const auto& to : allowedToList) os << from << " -> " << to << "\n";
+		os << "\n# forbidden:\n";
+		for (const auto& to : forbiddenToList) os << from << " -> " << to << "\n"; // TODO: forbidden color
+		os << "\n# unresolved:\n";
+		for (const auto& to : unresolvedToList) os << "# " << from << " -> " << to << "\n";
 		return os;
 	}
 };
 
 struct Output
 {
-	std::vector<Include> includeList;
-	std::vector<Include> unresolvedIncludeList;
+	std::vector<Include> specifiedIncludeList;
+	std::vector<Include> unspecifiedIncludeList;
 
 	std::ostream& toJsonString(std::ostream& os) const
 	{
 		os << "{\n";
-		os << "  \"includeList\": [\n";
-		for (size_t i = 0; i < includeList.size(); ++i)
+		os << R"(  "specifiedIncludeList": [)";
+		auto func = [&](const Include& value, bool isLast)
 		{
-			includeList[i].toJsonString(os, "  ");
-			if (i == includeList.size() - 1) os << "\n";
-			else
-				os << ",\n";
-		}
-		os << "  ],\n";
-		os << "  \"unresolvedIncludeList\": [\n";
-		for (size_t i = 0; i < unresolvedIncludeList.size(); ++i)
-		{
-			unresolvedIncludeList[i].toJsonString(os, "  ");
-			if (i == unresolvedIncludeList.size() - 1) os << "\n";
-			else
-				os << ",\n";
-		}
-		os << "  ]\n";
-		os << "}\n";
+			value.toJsonString(os);
+			if (!isLast) os << ", ";
+		};
+		foreach (specifiedIncludeList, func);
+		os << "],\n";
+		os << R"(  "unspecifiedIncludeList": [)";
+		foreach (unspecifiedIncludeList, func);
+		os << "]\n";
+		os << "}";
 		return os;
 	}
+
 	std::ostream& toD2String(std::ostream& os) const
 	{
-		os << "# include list\n";
-		for (const auto& include : includeList) include.toD2String(os);
-		os << "\n# unresolved include list\n";
-		for (const auto& unresolvedInclude : unresolvedIncludeList) unresolvedInclude.toD2String(os);
+		if (!specifiedIncludeList.empty())
+		{
+			os << "# specified include list:\n";
+			for (const auto& include : specifiedIncludeList) include.toD2String(os, true);
+			os << "\n";
+		}
+		if (!unspecifiedIncludeList.empty())
+		{
+			os << "# unspecified include list:\n";
+			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, false);
+			os << "\n";
+		}
 		return os;
 	}
 };
@@ -116,8 +155,6 @@ namespace utility
 		if (result) subStr = str.substr(0, offset);
 		return result;
 	}
-
-	static fs::path normalize(const fs::path& p) { return fs::absolute(p).lexically_normal(); }
 
 	static bool isCppFile(const std::string& filePath)
 	{
@@ -142,11 +179,35 @@ namespace utility
 
 		return result.substr(0, result.size() - 1);
 	}
-	static void updateCppFileList(const fs::path& scanPath, std::vector<fs::path>& cppFileList)
+
+	static bool isPathInclude(const fs::path& p1, const fs::path& p2)
 	{
+		std::string_view subStr;
+		return bStartWith(p1.string(), p2.string(), subStr);
+	}
+
+	static void updateCppPathList(const fs::path& scanPath,
+		std::vector<fs::path>& cppPathList,
+		const std::vector<fs::path>& excludePathList,
+		const std::vector<fs::path>& forceIncludePathList)
+	{
+		bool bForceInclude = false;
+		for (const auto& forceIncludePath : forceIncludePathList)
+		{
+			if (isPathInclude(scanPath, forceIncludePath))
+			{
+				bForceInclude = true;
+				break;
+			}
+		}
+		if (!bForceInclude)
+		{
+			for (const auto& excludePath : excludePathList)
+				if (isPathInclude(scanPath, excludePath)) return;
+		}
 		if (fs::is_regular_file(scanPath))
 		{
-			if (isCppFile(scanPath.string())) cppFileList.push_back(scanPath);
+			if (isCppFile(scanPath.string())) cppPathList.push_back(scanPath);
 		}
 		else if (fs::is_directory(scanPath))
 		{
@@ -154,70 +215,135 @@ namespace utility
 			{
 				if (file.is_directory())
 				{
-					updateCppFileList(file.path(), cppFileList);
+					updateCppPathList(file.path(), cppPathList, excludePathList, forceIncludePathList);
 				}
 				else
 				{
-					if (isCppFile(file.path().string())) cppFileList.push_back(file.path());
+					if (isCppFile(file.path().string())) cppPathList.push_back(file.path());
 				}
 			}
 		}
 	}
 } // namespace utility
 
-Output getOutput(const Config& config)
+static std::vector<std::string> getStdIncludePathList()
+{
+	std::vector<std::string> pathList;
+
+	const std::string compiler = "g++";
+
+	const fs::path tmp = fs::temp_directory_path() / "print_compiler_path.tmp";
+	{
+		std::ofstream f(tmp);
+		f << '\n';
+	}
+	const std::string cmd = compiler + " -E -x c++ \"" + tmp.string() + "\" -v 2>&1";
+	FILE* pipe = popen(cmd.c_str(), "r"); // NOLINT -- need shell for 2>&1
+	fs::remove(tmp);
+
+	if (!pipe)
+	{
+		std::cerr << "Failed to run: " << compiler << "\n";
+		return pathList;
+	}
+
+	std::ostringstream raw;
+	std::array<char, 256> buf{};
+	while (fgets(buf.data(), static_cast<int>(buf.size()), pipe)) raw << buf.data();
+	pclose(pipe);
+
+	const std::string out = raw.str();
+	const std::string startMarker = "#include <...> search starts here:";
+	const std::string endMarker = "End of search list.";
+
+	auto startPos = out.find(startMarker);
+	if (startPos == std::string::npos)
+	{
+		std::cerr << "Could not find include search list in compiler output.\n";
+		return pathList;
+	}
+
+	startPos += startMarker.size();
+	auto endPos = out.find(endMarker, startPos);
+	if (endPos == std::string::npos) endPos = out.size();
+
+	const std::string block = out.substr(startPos, endPos - startPos);
+	std::istringstream iss(block);
+	std::string line;
+
+	while (std::getline(iss, line))
+	{
+		// Paths are indented with spaces
+		size_t i = 0;
+		while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
+		if (i < line.size())
+		{
+			const std::string path = line.substr(i);
+			if (!path.empty()) pathList.push_back(fs::path(path).lexically_normal().string());
+		}
+	}
+
+	return pathList;
+}
+
+static Output getOutput(const Config& config)
 {
 	using namespace utility;
 
 	Output result;
 
-	std::vector<fs::path> cppFileList;
-	for (const auto& scanPath : config.scanPathList) updateCppFileList(scanPath, cppFileList);
+	std::vector<fs::path> cppPathList;
+	for (const auto& scanPath : config.scanPathList)
+		updateCppPathList(scanPath, cppPathList, config.excludePathList, config.forceIncludePathList);
 
 	std::cout << "start parsing..." << "\n";
 
-	for (size_t i = 0; i < cppFileList.size(); ++i)
+	for (size_t i = 0; i < cppPathList.size(); ++i)
 	{
-		std::cout << "\r[" << (i + 1) << "/" << cppFileList.size() << "]" << std::flush;
-		const auto& cppFile = cppFileList[i];
-		const auto dottedPath = pathToDotted(cppFile);
-		Include resolvedInclude;
-		resolvedInclude.from = dottedPath;
-		Include unresolvedInclude;
-		unresolvedInclude.from = dottedPath;
-		std::ifstream ifs(cppFile);
+		std::cout << "\r[" << (i + 1) << "/" << cppPathList.size() << "]" << std::flush;
+		const auto& cppPath = cppPathList[i];
+		const auto dottedPath = pathToDotted(cppPath);
+		Include include_;
+		include_.from = dottedPath;
+		std::ifstream ifs(cppPath);
 		std::string line;
 		while (std::getline(ifs, line))
 		{
 			std::string_view substr;
 			if (!bStartWith(line, "#include ", substr)) continue;
-
 			auto startPos = substr.find_first_of("\"<");
 			if (startPos == std::string::npos) continue;
 			auto endPos = substr.find_first_of("\">", startPos + 1);
 			const std::string include = static_cast<std::string>(substr.substr(startPos + 1, endPos - startPos - 1));
-
-			const fs::path& includePath = cppFile.parent_path() / fs::path(include);
-
-			if (fs::exists(includePath)) resolvedInclude.toList.push_back(pathToDotted(includePath));
+			const fs::path& includePath = cppPath.parent_path() / fs::path(include);
+			if (fs::exists(includePath)) include_.allowedToList.push_back(pathToDotted(includePath));
 			else
 			{
 				bool bResolved = false;
 				for (const auto& includePath : config.includePathList)
 				{
-					const fs::path& newIncludePath = includePath.parent_path() / fs::path(include);
+					const fs::path& newIncludePath = includePath / fs::path(include);
 					if (fs::exists(newIncludePath))
 					{
-						resolvedInclude.toList.push_back(pathToDotted(newIncludePath));
+						include_.allowedToList.push_back(pathToDotted(newIncludePath));
 						bResolved = true;
 						break;
 					}
 				}
-				if (!bResolved) unresolvedInclude.toList.push_back(pathToDotted(includePath));
+				for (const auto& stdIncludePath : config.stdIncludePathList)
+				{
+					const fs::path& newIncludePath = stdIncludePath / fs::path(include);
+					if (fs::exists(newIncludePath))
+					{
+						if (config.bIncludeStdLib) include_.allowedToList.push_back(include);
+						bResolved = true;
+						break;
+					}
+				}
+				if (!bResolved) include_.unresolvedToList.push_back(include);
 			}
 		}
-		result.includeList.push_back(std::move(resolvedInclude));
-		if (!unresolvedInclude.toList.empty()) result.unresolvedIncludeList.push_back(std::move(unresolvedInclude));
+		result.specifiedIncludeList.push_back(std::move(include_));
 	}
 
 	std::cout << "\nDone\n";
@@ -225,16 +351,15 @@ Output getOutput(const Config& config)
 	return result;
 }
 
-// --- CLI ---
 static void usage(const char* prog)
 {
 	std::cerr << "Usage: " << prog << " [options] <scan_path> [scan_path ...]\n"
 			  << "  -I <path>     Add include path for resolution (folder or file)\n"
-			  << "  -e <path>     Exclude path (folder or file)\n"
-			  << "  --stdlib      Show included standard library files\n"
-			  << "  --d2          Output D2 lang (default format)\n"
-			  << "  --json        Output JSON\n"
-			  << "  -o <file>     Write output to file (else stdout)\n";
+			  << "  -e <path>     Exclude path (folder or file); use -e !<path> to force-include\n"
+			  << "  --stdlib      Include standard library headers in output (default: false)\n"
+			  << "  --json        Output JSON (default: D2 lang)\n"
+			  << "  -o <file>     Write output to file; may be repeated; .json → JSON, else D2 (default: stdout)\n"
+			  << "  -h, --help    Print this help\n";
 }
 
 static Config parseArgs(int argc, char** argv)
@@ -243,17 +368,26 @@ static Config parseArgs(int argc, char** argv)
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string a = argv[i];
-		if (a == "-I" && i + 1 < argc) c.includePathList.push_back(utility::normalize(argv[++i]));
+		if (a == "-I" && i + 1 < argc)
+		{
+			std::string path = argv[++i];
+			if (path.back() == '/') path = path.substr(0, path.size() - 1);
+			c.includePathList.emplace_back(path);
+		}
 		else if (a == "-e" && i + 1 < argc)
-			c.excludePathList.push_back(utility::normalize(argv[++i]));
-		else if (a == "--stdlib")
-			c.includeStdLib = true;
-		else if (a == "--json")
-			c.outputJson = true;
-		else if (a == "--d2")
-			c.outputD2 = true;
+		{
+			std::string path = argv[++i];
+			if (path.back() == '/') path = path.substr(0, path.size() - 1);
+			if (path.front() == '!') c.forceIncludePathList.emplace_back(path.substr(1));
+			else
+				c.excludePathList.emplace_back(path);
+		}
 		else if (a == "-o" && i + 1 < argc)
-			c.outputPath = argv[++i];
+			c.outputPathList.emplace_back(argv[++i]);
+		else if (a == "--stdlib")
+			c.bIncludeStdLib = true;
+		else if (a == "--json")
+			c.bOutputJson = true;
 		else if (a == "-h" || a == "--help")
 		{
 			usage(argv[0]);
@@ -262,13 +396,7 @@ static Config parseArgs(int argc, char** argv)
 		else if (!a.empty() && a[0] != '-')
 			c.scanPathList.emplace_back(a);
 	}
-	if (!c.outputJson && !c.outputD2)
-	{
-		std::string_view subStr;
-		if (utility::bEndWith(c.outputPath.string(), ".json", subStr)) c.outputJson = true;
-		else
-			c.outputD2 = true;
-	}
+	c.stdIncludePathList = getStdIncludePathList();
 	return c;
 }
 
@@ -277,36 +405,34 @@ int main(int argc, char** argv)
 	const Config cfg = parseArgs(argc, argv);
 	if (cfg.scanPathList.empty())
 	{
+		std::cerr << "Error: no scan paths provided\n";
 		usage(argv[0]);
 		return 1;
 	}
 	const Output output = getOutput(cfg);
-	if (cfg.outputJson)
+	if (cfg.outputPathList.empty())
 	{
-		if (cfg.outputPath.empty())
-		{
-			std::cout << "\n";
-			output.toJsonString(std::cout);
-		}
+		std::cout << "\n";
+		if (cfg.bOutputJson) output.toJsonString(std::cout);
 		else
-		{
-			std::ofstream ofs(cfg.outputPath);
-			output.toJsonString(ofs);
-			std::cout << "Generated: " << cfg.outputPath << "\n";
-		}
-	}
-	else if (cfg.outputD2)
-	{
-		if (cfg.outputPath.empty())
-		{
-			std::cout << "\n";
 			output.toD2String(std::cout);
-		}
-		else
+	}
+	else
+	{
+		for (const auto& outputPath : cfg.outputPathList)
 		{
-			std::ofstream ofs(cfg.outputPath);
-			output.toD2String(ofs);
-			std::cout << "Generated: " << cfg.outputPath << "\n";
+			std::string_view subStr;
+			std::filesystem::create_directories(outputPath.parent_path());
+			std::ofstream ofs(outputPath);
+			if (!ofs.is_open())
+			{
+				std::cerr << "Failed to open output file: " << outputPath << "\n";
+				continue;
+			}
+			if (utility::bEndWith(outputPath.string(), ".json", subStr)) output.toJsonString(ofs);
+			else
+				output.toD2String(ofs);
+			std::cout << "Generated: " << outputPath << "\n";
 		}
 	}
 	return 0;
