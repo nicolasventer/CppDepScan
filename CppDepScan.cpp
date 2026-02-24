@@ -92,14 +92,12 @@ struct Include
 		return os;
 	}
 
-	std::ostream& toD2String(std::ostream& os, EIncludeStatus status, bool isSpecified) const
+	std::ostream& toD2String(std::ostream& os, EIncludeStatus status) const
 	{
-		// TODO: write file even if no includes are found
-		// TODO: unspecified color
 		if (status == EIncludeStatus::Allowed)
 			for (const auto& to : allowedToList) os << from << " -> " << to << "\n";
 		else if (status == EIncludeStatus::Forbidden)
-			for (const auto& to : forbiddenToList) os << from << " -> " << to << "\n"; // TODO: forbidden color
+			for (const auto& to : forbiddenToList) os << from << " -> " << to << ": { class: forbidden }\n";
 		else
 			for (const auto& to : unresolvedToList) os << "# " << from << " -> " << to << "\n";
 		return os;
@@ -131,21 +129,39 @@ struct Output
 
 	std::ostream& toD2String(std::ostream& os) const
 	{
+		os << R"(classes: {
+  forbidden: {
+    style: {
+      stroke: "red"
+    }
+  }
+  unspecified: {
+    style: {
+      stroke: "orange"
+    }
+  }
+}
+)";
 		if (!specifiedIncludeList.empty())
 		{
 			os << "# specified include list:\n";
+			os << "\n# files:\n";
+			for (const auto& include : specifiedIncludeList) os << include.from << "\n";
 			os << "\n# allowed:\n";
-			for (const auto& include : specifiedIncludeList) include.toD2String(os, EIncludeStatus::Allowed, true);
+			for (const auto& include : specifiedIncludeList) include.toD2String(os, EIncludeStatus::Allowed);
 			os << "\n# forbidden:\n";
-			for (const auto& include : specifiedIncludeList) include.toD2String(os, EIncludeStatus::Forbidden, true);
+			for (const auto& include : specifiedIncludeList) include.toD2String(os, EIncludeStatus::Forbidden);
 			os << "\n# unresolved:\n";
-			for (const auto& include : specifiedIncludeList) include.toD2String(os, EIncludeStatus::Unresolved, true);
+			for (const auto& include : specifiedIncludeList) include.toD2String(os, EIncludeStatus::Unresolved);
 			os << "\n";
 		}
 		if (!unspecifiedIncludeList.empty())
 		{
 			os << "\n# unspecified include list:\n";
-			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, EIncludeStatus::Allowed, false);
+			os << "\n# files:\n";
+			for (const auto& include : unspecifiedIncludeList) os << include.from << ".class: unspecified\n";
+			os << "\n# resolved:\n";
+			for (const auto& include : unspecifiedIncludeList) include.toD2String(os, EIncludeStatus::Allowed);
 			os << "\n";
 		}
 		return os;
@@ -198,7 +214,7 @@ namespace utility
 	static bool isPathInclude(const fs::path& p1, const fs::path& p2)
 	{
 		std::string_view subStr;
-		return bStartWith(p1.string(), p2.string(), subStr);
+		return bStartWith(p1.lexically_normal().string(), p2.lexically_normal().string(), subStr);
 	}
 
 	static void updateCppPathList(const fs::path& scanPath,
