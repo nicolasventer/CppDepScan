@@ -23,10 +23,11 @@ struct Config
 	std::vector<fs::path> includePathList;
 	std::vector<fs::path> excludePathList;
 	std::vector<fs::path> forceIncludePathList;
-	std::vector<fs::path> outputPathList;							 // empty = stdout
-	std::map<fs::path, std::vector<fs::path>> allowedIncludeListMap; // from -> to list
-	bool bIncludeStdLib = false;									 // default: false
-	bool bOutputJson = false;										 // default: D2 lang
+	std::vector<fs::path> outputPathList;					   // empty = stdout
+	std::map<fs::path, size_t> allowedIncludeIndexMap;		   // from -> index of allowedIncludeListList
+	std::vector<std::vector<fs::path>> allowedIncludeListList; // list of allowed include lists
+	bool bIncludeStd = false;								   // default: false
+	bool bOutputJson = false;								   // default: D2 lang
 
 	// automatically filled
 	std::vector<std::string> stdIncludePathList;
@@ -317,11 +318,12 @@ static std::vector<std::string> getStdIncludePathList()
 	return pathList;
 }
 
-static const std::vector<fs::path>* getAllowedToList(
-	const std::map<fs::path, std::vector<fs::path>>& allowedIncludeListMap, const fs::path& cppPath)
+static const std::vector<fs::path>* getAllowedToList(const std::map<fs::path, size_t>& allowedIncludeIndexMap,
+	const std::vector<std::vector<fs::path>>& allowedIncludeListList,
+	const fs::path& cppPath)
 {
-	for (const auto& [from, toList] : allowedIncludeListMap)
-		if (utility::isPathInclude(cppPath, from)) return &toList;
+	for (const auto& [from, index] : allowedIncludeIndexMap)
+		if (utility::isPathInclude(cppPath, from)) return &allowedIncludeListList[index];
 	return nullptr;
 }
 
@@ -341,7 +343,7 @@ static Output getOutput(const Config& config)
 	{
 		std::cout << "\r[" << (i + 1) << "/" << cppPathList.size() << "]" << std::flush;
 		const auto& cppPath = cppPathList[i];
-		const auto* allowedToList = getAllowedToList(config.allowedIncludeListMap, cppPath);
+		const auto* allowedToList = getAllowedToList(config.allowedIncludeIndexMap, config.allowedIncludeListList, cppPath);
 		const auto dottedPath = pathToDotted(cppPath);
 		Include include_;
 		include_.from = dottedPath;
@@ -377,27 +379,42 @@ static Output getOutput(const Config& config)
 								}
 							}
 						}
-						if (isAllowed) include_.allowedToList.push_back(pathToDotted(newIncludePath));
-						else
-							include_.forbiddenToList.push_back(pathToDotted(newIncludePath));
+						bool isExcluded = false;
+						for (const auto& excludePath : config.excludePathList)
+						{
+							if (utility::isPathInclude(newIncludePath, excludePath))
+							{
+								isExcluded = true;
+								break;
+							}
+						}
+						if (!isExcluded)
+						{
+							if (isAllowed) include_.allowedToList.push_back(pathToDotted(newIncludePath));
+							else
+								include_.forbiddenToList.push_back(pathToDotted(newIncludePath));
+						}
 						isResolved = true;
 						break;
 					}
 				}
-				for (const auto& stdIncludePath : config.stdIncludePathList)
+				if (!isResolved)
 				{
-					const fs::path& newIncludePath = stdIncludePath / fs::path(include);
-					if (fs::exists(newIncludePath))
+					for (const auto& stdIncludePath : config.stdIncludePathList)
 					{
-						if (config.bIncludeStdLib) include_.allowedToList.push_back(include);
-						isResolved = true;
-						break;
+						const fs::path& newIncludePath = stdIncludePath / fs::path(include);
+						if (fs::exists(newIncludePath))
+						{
+							if (config.bIncludeStd) include_.allowedToList.push_back(include);
+							isResolved = true;
+							break;
+						}
 					}
 				}
 				if (!isResolved) include_.unresolvedToList.push_back(include);
 			}
 		}
-		bool isSpecified = config.allowedIncludeListMap.empty() || allowedToList != nullptr;
+		bool isSpecified = config.allowedIncludeIndexMap.empty() || allowedToList != nullptr;
 
 		if (isSpecified) result.specifiedIncludeList.push_back(std::move(include_));
 		else
@@ -415,7 +432,7 @@ static void usage(const char* prog)
 			  << "  -I <path>     Add include path for resolution (folder or file)\n"
 			  << "  -e <path>     Exclude path (folder or file); may be repeated; use -e !<path> to force-include\n"
 			  << "  -A, --allowed <from> <to>  Allowed include: <from> may include <to>; may be repeated\n"
-			  << "  --stdlib      Include standard library headers in output (default: false)\n"
+			  << "  --std      Include standard library headers in output (default: false)\n"
 			  << "  --json        Output JSON (default: D2 lang)\n"
 			  << "  -o <file>     Write output to file; may be repeated; .json → JSON, else D2 (default: stdout)\n"
 			  << "  -h, --help    Print this help\n";
@@ -447,12 +464,15 @@ static Config parseArgs(int argc, char** argv)
 			std::string toStr = argv[++i];
 			if (!fromStr.empty() && fromStr.back() == '/') fromStr.pop_back();
 			if (!toStr.empty() && toStr.back() == '/') toStr.pop_back();
-			c.allowedIncludeListMap[fs::path(fromStr)].emplace_back(toStr);
+			fs::path fromPath(fromStr);
+			if (c.allowedIncludeIndexMap.find(fromPath) == c.allowedIncludeIndexMap.end())
+				c.allowedIncludeIndexMap[fromPath] = c.allowedIncludeListList.size();
+			c.allowedIncludeListList[c.allowedIncludeIndexMap[fromPath]].emplace_back(toStr);
 		}
 		else if (a == "-o" && i + 1 < argc)
 			c.outputPathList.emplace_back(argv[++i]);
-		else if (a == "--stdlib")
-			c.bIncludeStdLib = true;
+		else if (a == "--std")
+			c.bIncludeStd = true;
 		else if (a == "--json")
 			c.bOutputJson = true;
 		else if (a == "-h" || a == "--help")

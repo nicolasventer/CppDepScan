@@ -36,9 +36,9 @@ CppDepScan [options] <scan_path> [scan_path ...]
 
 | Option         | Description                                                                                                                         |
 | -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `-I <path>`    | Add include path for resolution (folder or file). Like compiler `-I`. May be repeated.                                               |
-| `-e <path>`    | Exclude path (folder or file); paths under this are not scanned. Use `-e !<path>` to force-include (scan even if under an exclude).  |
-| `--stdlib`     | Include standard library headers in the output (default: false).                                                                     |
+| `-I <path>`    | Add include path for resolution (folder or file). Like compiler `-I`. May be repeated.                                              |
+| `-e <path>`    | Exclude path (folder or file); paths under this are not scanned. Use `-e !<path>` to force-include (scan even if under an exclude). |
+| `--std`        | Include standard library headers in the output (default: false).                                                                    |
 | `--json`       | Output JSON. Default format when neither `--json` nor `-o` implies format is D2.                                                    |
 | `-o <file>`    | Write output to file (default: stdout). May be repeated. Format: `.json` → JSON, otherwise D2.                                      |
 | `-h`, `--help` | Print help.                                                                                                                         |
