@@ -1,4 +1,8 @@
 #include <array>
+#include <cstddef>
+#include <cstdint>
+#include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <functional>
@@ -8,6 +12,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #ifdef _WIN32
@@ -229,20 +234,9 @@ namespace utility
 		const std::vector<fs::path>& excludePathList,
 		const std::vector<fs::path>& forceIncludePathList)
 	{
-		bool bForceInclude = false;
-		for (const auto& forceIncludePath : forceIncludePathList)
-		{
-			if (isPathInclude(scanPath, forceIncludePath))
-			{
-				bForceInclude = true;
-				break;
-			}
-		}
-		if (!bForceInclude)
-		{
-			for (const auto& excludePath : excludePathList)
-				if (isPathInclude(scanPath, excludePath)) return;
-		}
+		const bool isForceIncluded = getPathThatIncludeFromList(scanPath, forceIncludePathList) != nullptr;
+		const bool isExcluded = !isForceIncluded && getPathThatIncludeFromList(scanPath, excludePathList) != nullptr;
+		if (isExcluded) return;
 		if (fs::is_regular_file(scanPath))
 		{
 			if (isCppFile(scanPath.string())) cppPathList.push_back(scanPath);
@@ -353,7 +347,7 @@ static Output getOutput(const Config& config)
 		const auto* groupPath = getPathThatIncludeFromList(cppPath, config.groupPathList);
 		const auto dottedPath = pathToDotted(groupPath != nullptr ? *groupPath : cppPath);
 		const auto cppDottedPath = pathToDotted(cppPath); // used only for forbidden or unresolved includes
-		bool isSpecified = config.allowedIncludeIndexMap.empty() || allowedToList != nullptr;
+		const bool isSpecified = config.allowedIncludeIndexMap.empty() || allowedToList != nullptr;
 		auto& include_ = isSpecified ? result.specifiedIncludeMap[dottedPath] : result.unspecifiedIncludeMap[dottedPath];
 		std::ifstream ifs(cppPath);
 		std::string line;
@@ -380,9 +374,12 @@ static Output getOutput(const Config& config)
 					const fs::path& newIncludePath = includePath / fs::path(include);
 					if (fs::exists(newIncludePath))
 					{
-						bool isAllowed
+						const bool isAllowed
 							= allowedToList == nullptr || getPathThatIncludeFromList(newIncludePath, *allowedToList) != nullptr;
-						bool isExcluded = getPathThatIncludeFromList(newIncludePath, config.excludePathList) != nullptr;
+						const bool isForceIncluded
+							= getPathThatIncludeFromList(newIncludePath, config.forceIncludePathList) != nullptr;
+						const bool isExcluded
+							= !isForceIncluded && getPathThatIncludeFromList(newIncludePath, config.excludePathList) != nullptr;
 						if (!isExcluded)
 						{
 							if (isAllowed)
@@ -470,7 +467,7 @@ static Config parseArgs(int argc, char** argv)
 			std::string toStr = argv[++i];
 			if (!fromStr.empty() && fromStr.back() == '/') fromStr.pop_back();
 			if (!toStr.empty() && toStr.back() == '/') toStr.pop_back();
-			fs::path fromPath(fromStr);
+			const fs::path fromPath(fromStr);
 			if (c.allowedIncludeIndexMap.find(fromPath) == c.allowedIncludeIndexMap.end())
 				c.allowedIncludeIndexMap[fromPath] = c.allowedIncludeListList.size();
 			c.allowedIncludeListList[c.allowedIncludeIndexMap[fromPath]].emplace_back(toStr);
@@ -494,7 +491,7 @@ static Config parseArgs(int argc, char** argv)
 		}
 		else if (!a.empty() && a[0] == '-')
 		{
-			std::cerr << "Error: unknown option: " << a << "\n";
+			std::cerr << "Error with option: " << a << "\n";
 			usage(argv[0]);
 			std::exit(1);
 		}
