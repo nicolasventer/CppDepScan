@@ -34,25 +34,33 @@ Each produces the `CppDepScan` (or `CppDepScan.exe`) executable.
 CppDepScan [options] <scan_path> [scan_path ...]
 ```
 
-| Option         | Description                                                                                                                         |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
-| `-I <path>`    | Add include path for resolution (folder or file). Like compiler `-I`. May be repeated.                                              |
-| `-e <path>`    | Exclude path (folder or file); paths under this are not scanned. Use `-e !<path>` to force-include (scan even if under an exclude). |
-| `--std`        | Include standard library headers in the output (default: false).                                                                    |
-| `--json`       | Output JSON. Default format when neither `--json` nor `-o` implies format is D2.                                                    |
-| `-o <file>`    | Write output to file (default: stdout). May be repeated. Format: `.json` → JSON, otherwise D2.                                      |
-| `-h`, `--help` | Print help.                                                                                                                         |
+| Option                        | Description                                                                                    |
+| ----------------------------- | ---------------------------------------------------------------------------------------------- |
+| `-I <path>`                   | Add include path for resolution (folder or file). Like compiler `-I`. May be repeated.         |
+| `-e <path>`                   | Exclude path (folder or file); paths under this are not scanned.                               |
+|                               | Use `-e !<path>` to force-include (scan even if under an exclude).                             |
+| `-A`, `--allowed <from> <to>` | Declare that \<from\> may include \<to\>. May be repeated.                                     |
+| `--std`                       | Include standard library headers in the output (default: false).                               |
+| `--json`                      | Output JSON. Default format when neither `--json` nor `-o` implies format is D2.               |
+| `-g`, `--group <path>`        | Group files by directory; path may be repeated (default: off).                                 |
+| `-o <file>`                   | Write output to file (default: stdout). May be repeated. Format: `.json` → JSON, otherwise D2. |
+| `-h`, `--help`                | Print help.                                                                                    |
 
 - **Scan paths**: files or directories to scan for C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`, `.h++`).
 - **Include paths**: used to resolve `#include "..."` and `#include <...>` (current file’s directory is always tried first for `"..."`).
 - **Exclude paths**: any file or directory under these is not scanned. Prefix with `!` to force-include that path even if it lies under an exclude.
+- **Allowed includes** (`-A`): explicitly allow \<from\> to include \<to\>; used for dependency rules and D2/JSON output.
+- **Group** (`-g`): group files by directory so the output is organized by the given path(s).
 
 ## Output
 
 ### JSON
 
-- `specifiedIncludeList`: array of objects with `"from"` (dotted path), `"allowedToList"`, `"forbiddenToList"`, `"unresolvedToList"` (arrays of dotted paths or raw include names).
-- `unspecifiedIncludeList`: same shape (currently unused).
+- `specifiedIncludeMap`: object mapping each source file (dotted path) to an object with:
+  - `allowedSet`: array of dotted paths or raw names for resolved, allowed includes
+  - `forbiddenSet`: array of dotted paths for includes that are disallowed by the rules
+  - `unresolvedSet`: array of raw include names that could not be resolved
+- `unspecifiedIncludeMap`: same shape (files not in the specified set; e.g. headers only).
 
 ### D2
 
@@ -78,6 +86,11 @@ CppDepScan [options] <scan_path> [scan_path ...]
 ```bash
 # Both JSON and D2 via multiple -o (format by extension)
 ./CppDepScan -I src -e build -o out.json -o graph.d2 src
+```
+
+```bash
+# D2 with grouping by directory
+./CppDepScan -I src -e build -g src -o graph.d2 src
 ```
 
 On Windows with `CppDepScan.exe`, use the same options (e.g. `CppDepScan.exe -I src -e build -o out.json src`).
