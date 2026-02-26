@@ -52,16 +52,49 @@ std::string escapeJson(const std::string& s)
 	return result;
 }
 
-template <typename T> void foreach (const T& range, const std::function<void(const typename T::value_type&, bool)>& func)
+template <typename T>
+void toJsonObject(std::ostream& os,
+	const std::string& indent,
+	const T& range,
+	const std::function<void(const typename T::value_type&, const std::string& indent)>& func)
 {
+	os << "{";
+	auto newIndent = indent + "  ";
 	auto it = range.begin();
 	auto itEnd = range.end();
+	if (it != itEnd)
+	{
+		os << "\n" << newIndent;
+		func(*it, newIndent);
+		++it;
+	}
 	while (it != itEnd)
 	{
-		const auto& value = *it;
+		os << ",\n" << newIndent;
+		func(*it, newIndent);
 		++it;
-		func(value, it == itEnd);
 	}
+	os << "\n" << indent << "}";
+}
+
+template <typename T>
+void toJsonArray(std::ostream& os, const T& range, const std::function<void(const typename T::value_type&)>& func)
+{
+	os << "[";
+	auto it = range.begin();
+	auto itEnd = range.end();
+	if (it != itEnd)
+	{
+		func(*it);
+		++it;
+	}
+	while (it != itEnd)
+	{
+		os << ",\n";
+		func(*it);
+		++it;
+	}
+	os << "]";
 }
 
 enum class EIncludeStatus : uint8_t
@@ -77,22 +110,20 @@ struct Include
 	std::set<std::string> forbiddenSet;
 	std::set<std::string> unresolvedSet;
 
-	std::ostream& toJsonString(std::ostream& os) const
+	std::ostream& toJsonString(std::ostream& os, const std::string& indent) const
 	{
-		os << R"({ "allowedSet": [)";
-		auto func = [&](const std::string& value, bool isLast)
-		{
-			os << '"' << escapeJson(value) << '"';
-			if (!isLast) os << ", ";
-		};
-		foreach (allowedSet, func);
-		os << "],";
-		os << R"( "forbiddenSet": [)";
-		foreach (forbiddenSet, func);
-		os << "],";
-		os << R"( "unresolvedSet": [)";
-		foreach (unresolvedSet, func);
-		os << "] }";
+		auto members
+			= {std::make_pair("allowedSet", &allowedSet), {"forbiddenSet", &forbiddenSet}, {"unresolvedSet", &unresolvedSet}};
+
+		toJsonObject(os,
+			indent,
+			members,
+			[&](const auto& member, const std::string& /* indent */)
+			{
+				os << "\"" << escapeJson(member.first) << "\"" << ": ";
+				toJsonArray(os, *member.second, [&](const auto& value) { os << "\"" << escapeJson(value) << "\""; });
+			});
+
 		return os;
 	}
 
@@ -115,20 +146,23 @@ struct Output
 
 	std::ostream& toJsonString(std::ostream& os) const
 	{
-		os << "{\n";
-		os << R"(  "specifiedIncludeMap":)" << "\n  {";
-		auto func = [&](const std::pair<std::string, Include>& pair, bool isLast)
-		{
-			os << "\n    \"" << escapeJson(pair.first) << "\": ";
-			pair.second.toJsonString(os);
-			if (!isLast) os << ", ";
-		};
-		foreach (specifiedIncludeMap, func);
-		os << "\n  },\n";
-		os << R"(  "unspecifiedIncludeMap":)" << "\n  {";
-		foreach (unspecifiedIncludeMap, func);
-		os << "\n  }\n";
-		os << "}";
+		auto members
+			= {std::make_pair("specifiedIncludeMap", &specifiedIncludeMap), {"unspecifiedIncludeMap", &unspecifiedIncludeMap}};
+		toJsonObject(os,
+			"",
+			members,
+			[&](const auto& member, const std::string& indent)
+			{
+				os << "\"" << escapeJson(member.first) << "\": ";
+				toJsonObject(os,
+					indent,
+					*member.second,
+					[&](const auto& value, const std::string& indent)
+					{
+						os << "\"" << escapeJson(value.first) << "\": ";
+						value.second.toJsonString(os, indent);
+					});
+			});
 		return os;
 	}
 
@@ -441,9 +475,8 @@ static void usage(const char* prog)
 			  << "  -h, --help    Print this help\n";
 }
 
-static Config parseArgs(int argc, char** argv)
+static bool parseArgs(int argc, char** argv, Config& c)
 {
-	Config c;
 	for (int i = 1; i < argc; ++i)
 	{
 		std::string a = argv[i];
@@ -487,30 +520,32 @@ static Config parseArgs(int argc, char** argv)
 		else if (a == "-h" || a == "--help")
 		{
 			usage(argv[0]);
-			std::exit(0);
+			return false;
 		}
 		else if (!a.empty() && a[0] == '-')
 		{
 			std::cerr << "Error with option: " << a << "\n";
 			usage(argv[0]);
-			std::exit(1);
+			return false;
 		}
 		else
 			c.scanPathList.emplace_back(a);
 	}
+	if (c.scanPathList.empty())
+	{
+		std::cerr << "Error: no scan paths provided\n";
+		usage(argv[0]);
+		return false;
+	}
 	c.stdIncludePathList = getStdIncludePathList();
-	return c;
+	return true;
 }
 
 int main(int argc, char** argv)
 {
-	const Config cfg = parseArgs(argc, argv);
-	if (cfg.scanPathList.empty())
-	{
-		std::cerr << "Error: no scan paths provided\n";
-		usage(argv[0]);
-		return 1;
-	}
+	Config cfg;
+	if (!parseArgs(argc, argv, cfg)) return 1;
+
 	const Output output = getOutput(cfg);
 	if (cfg.outputPathList.empty())
 	{
