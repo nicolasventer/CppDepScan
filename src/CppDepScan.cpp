@@ -13,82 +13,93 @@
 #include <utility>
 #include <vector>
 
-template <typename T> std::ostream& toJsonOutput(std::ostream& os, const std::string& /* indent */, const T& /* value */)
+template <typename T> StreamAdapter toJsonOutput(const std::string& /* indent */, const T& /* value */)
 {
 	static_assert(sizeof(T) == 0, "toJsonOutput not implemented for this type");
-	return os;
+	return StreamAdapter([](std::ostream& /* os */) {});
 }
 
-template <>
-std::ostream& toJsonOutput<DetectedIncludes>(std::ostream& os, const std::string& indent, const DetectedIncludes& value)
+template <> StreamAdapter toJsonOutput<DetectedIncludes>(const std::string& indent, const DetectedIncludes& value)
 {
-	using namespace json_utility;
-
-	auto members = {std::make_pair("allowedSet", &value.allowedSet),
-		{"forbiddenSet", &value.forbiddenSet},
-		{"unresolvedSet", &value.unresolvedSet}};
-
-	toJsonObject(os,
-		indent,
-		members,
-		[&](const auto& member, const std::string& /* indent */)
+	return StreamAdapter(
+		[&](std::ostream& os)
 		{
-			toJsonArray(
-				toJsonString(os, member.first) << ": ", *member.second, [&](const auto& value) { toJsonString(os, value); });
-		});
+			using namespace json_utility;
 
-	return os;
+			auto members = {std::make_pair("allowedSet", &value.allowedSet),
+				{"forbiddenSet", &value.forbiddenSet},
+				{"unresolvedSet", &value.unresolvedSet}};
+
+			os << toJsonObject(indent,
+				members,
+				[&](const auto& member, const std::string& /* indent */)
+				{
+					os << toJsonString(member.first) << ": ";
+					os << toJsonArray(*member.second, [&](const auto& value) { os << toJsonString(value); });
+				});
+		});
 }
 
-template <> std::ostream& toJsonOutput<Output>(std::ostream& os, const std::string& indent, const Output& value)
+template <> StreamAdapter toJsonOutput<Output>(const std::string& indent, const Output& value)
 {
-	using namespace json_utility;
-
-	auto members = {std::make_pair("specifiedIncludeMap", &value.specifiedIncludesMap),
-		{"unspecifiedIncludeMap", &value.unspecifiedIncludesMap}};
-
-	toJsonObject(os,
-		indent,
-		members,
-		[&](const auto& member, const std::string& indent)
+	return StreamAdapter(
+		[&](std::ostream& os)
 		{
-			toJsonObject(toJsonString(os, member.first) << ": ",
-				indent,
-				*member.second,
-				[&](const auto& value, const std::string& indent)
-				{ toJsonOutput(toJsonString(os, value.first) << ": ", indent, value.second); });
+			using namespace json_utility;
+
+			auto members = {std::make_pair("specifiedIncludeMap", &value.specifiedIncludesMap),
+				{"unspecifiedIncludeMap", &value.unspecifiedIncludesMap}};
+
+			os << toJsonObject(indent,
+				members,
+				[&](const auto& member, const std::string& indent)
+				{
+					os << toJsonString(member.first) << ": ";
+					os << toJsonObject(indent,
+						*member.second,
+						[&](const auto& value, const std::string& indent)
+						{
+							os << toJsonString(value.first) << ": ";
+							os << toJsonOutput(indent, value.second);
+						});
+				});
 		});
-	return os;
 }
 
 template <typename...> struct ToD2OutputUnsupported;
-template <typename T, typename... U> std::ostream& toD2Output(std::ostream& os, const T& /* value */, const U&... /* args */)
+template <typename T, typename... U> StreamAdapter toD2Output(const T& /* value */, const U&... /* args */)
 {
 	static_assert(sizeof(ToD2OutputUnsupported<T, U...>) == 0, "toD2Output not implemented for these types");
-	return os;
+	return StreamAdapter([](std::ostream& /* os */) {});
 }
 
 template <>
-std::ostream& toD2Output<DetectedIncludes, std::string, EDetectedIncludeStatus>(
-	std::ostream& os, const DetectedIncludes& value, const std::string& from, const EDetectedIncludeStatus& status)
+StreamAdapter toD2Output<DetectedIncludes, std::string, EDetectedIncludeStatus>(
+	const DetectedIncludes& value, const std::string& from, const EDetectedIncludeStatus& status)
 {
-	if (status == EDetectedIncludeStatus::Allowed)
-		for (const auto& to : value.allowedSet) os << from << " -> " << to << "\n";
-	else if (status == EDetectedIncludeStatus::Forbidden)
-		for (const auto& to : value.forbiddenSet) os << from << " -> " << to << ": {class: forbidden}\n";
-	else
-	{
-		for (const auto& to : value.unresolvedSet)
-			os << to << ".class: unresolved\n" << from << " -> " << to << ": {class: unresolved}\n";
-	}
-	return os;
+	return StreamAdapter(
+		[&](std::ostream& os)
+		{
+			if (status == EDetectedIncludeStatus::Allowed)
+				for (const auto& to : value.allowedSet) os << from << " -> " << to << "\n";
+			else if (status == EDetectedIncludeStatus::Forbidden)
+				for (const auto& to : value.forbiddenSet) os << from << " -> " << to << ": {class: forbidden}\n";
+			else
+			{
+				for (const auto& to : value.unresolvedSet)
+					os << to << ".class: unresolved\n" << from << " -> " << to << ": {class: unresolved}\n";
+			}
+		});
 }
 
-template <> std::ostream& toD2Output<Output>(std::ostream& os, const Output& value)
+template <> StreamAdapter toD2Output<Output>(const Output& value)
 {
-	const auto& specifiedIncludeMap = value.specifiedIncludesMap;
-	const auto& unspecifiedIncludeMap = value.unspecifiedIncludesMap;
-	os << R"(classes: {
+	return StreamAdapter(
+		[&](std::ostream& os)
+		{
+			const auto& specifiedIncludeMap = value.specifiedIncludesMap;
+			const auto& unspecifiedIncludeMap = value.unspecifiedIncludesMap;
+			os << R"(classes: {
   forbidden: {
     style: {
       stroke: "red"
@@ -128,27 +139,31 @@ vars: {
   }
 }
 )";
-	if (!specifiedIncludeMap.empty())
-	{
-		os << "\n# specified include list:\n";
-		os << "\n# files:\n";
-		for (const auto& [from, _] : specifiedIncludeMap) os << from << "\n";
-		os << "\n# allowed:\n";
-		for (const auto& [from, include] : specifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Allowed);
-		os << "\n# forbidden:\n";
-		for (const auto& [from, include] : specifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Forbidden);
-		os << "\n# unresolved:\n";
-		for (const auto& [from, include] : specifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Unresolved);
-	}
-	if (!unspecifiedIncludeMap.empty())
-	{
-		os << "\n# unspecified include list:\n";
-		os << "\n# files:\n";
-		for (const auto& [from, _] : unspecifiedIncludeMap) os << from << ".class: unspecified\n";
-		os << "\n# resolved:\n";
-		for (const auto& [from, include] : unspecifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Allowed);
-	}
-	return os;
+			if (!specifiedIncludeMap.empty())
+			{
+				os << "\n# specified include list:\n";
+				os << "\n# files:\n";
+				for (const auto& [from, _] : specifiedIncludeMap) os << from << "\n";
+				os << "\n# allowed:\n";
+				for (const auto& [from, include] : specifiedIncludeMap)
+					os << toD2Output(include, from, EDetectedIncludeStatus::Allowed);
+				os << "\n# forbidden:\n";
+				for (const auto& [from, include] : specifiedIncludeMap)
+					os << toD2Output(include, from, EDetectedIncludeStatus::Forbidden);
+				os << "\n# unresolved:\n";
+				for (const auto& [from, include] : specifiedIncludeMap)
+					os << toD2Output(include, from, EDetectedIncludeStatus::Unresolved);
+			}
+			if (!unspecifiedIncludeMap.empty())
+			{
+				os << "\n# unspecified include list:\n";
+				os << "\n# files:\n";
+				for (const auto& [from, _] : unspecifiedIncludeMap) os << from << ".class: unspecified\n";
+				os << "\n# resolved:\n";
+				for (const auto& [from, include] : unspecifiedIncludeMap)
+					os << toD2Output(include, from, EDetectedIncludeStatus::Allowed);
+			}
+		});
 }
 
 inline Output getOutput(const Config& config)
@@ -230,9 +245,9 @@ int main(int argc, char** argv)
 	if (cfg.outputPathList.empty())
 	{
 		std::cout << "\n";
-		if (cfg.bUseJsonForStdOutput) toJsonOutput(std::cout, "", output);
+		if (cfg.bUseJsonForStdOutput) std::cout << toJsonOutput("", output);
 		else
-			toD2Output(std::cout, output);
+			std::cout << toD2Output(output);
 	}
 	else
 	{
@@ -245,9 +260,9 @@ int main(int argc, char** argv)
 				std::cerr << "Failed to open output file: " << outputPath << "\n";
 				continue;
 			}
-			if (utility::bEndWith(outputPath.string(), ".json")) toJsonOutput(ofs, "", output);
+			if (utility::bEndWith(outputPath.string(), ".json")) ofs << toJsonOutput("", output);
 			else
-				toD2Output(ofs, output);
+				ofs << toD2Output(output);
 			std::cout << "Generated: " << outputPath << "\n";
 		}
 	}
