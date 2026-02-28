@@ -75,9 +75,12 @@ std::ostream& toD2Output<DetectedIncludes, std::string, EDetectedIncludeStatus>(
 	if (status == EDetectedIncludeStatus::Allowed)
 		for (const auto& to : value.allowedSet) os << from << " -> " << to << "\n";
 	else if (status == EDetectedIncludeStatus::Forbidden)
-		for (const auto& to : value.forbiddenSet) os << from << " -> " << to << ": { class: forbidden }\n";
+		for (const auto& to : value.forbiddenSet) os << from << " -> " << to << ": {class: forbidden}\n";
 	else
-		for (const auto& to : value.unresolvedSet) os << "# " << from << " -> " << to << "\n";
+	{
+		for (const auto& to : value.unresolvedSet)
+			os << to << ".class: unresolved\n" << from << " -> " << to << ": {class: unresolved}\n";
+	}
 	return os;
 }
 
@@ -86,21 +89,48 @@ template <> std::ostream& toD2Output<Output>(std::ostream& os, const Output& val
 	const auto& specifiedIncludeMap = value.specifiedIncludesMap;
 	const auto& unspecifiedIncludeMap = value.unspecifiedIncludesMap;
 	os << R"(classes: {
-		forbidden: {
-		  style: {
-			stroke: "red"
-		  }
-		}
-		unspecified: {
-		  style: {
-			stroke: "orange"
-		  }
-		}
-	  }
-	  )";
+  forbidden: {
+    style: {
+      stroke: "red"
+    }
+  }
+  unspecified: {
+    style: {
+      stroke: "orange"
+    }
+  }
+  unresolved: {
+    style: {
+      stroke: "gray"
+    }
+  }
+}
+vars: {
+  d2-legend: {
+    a: {
+      label: Specified
+    }
+    b: Unspecified {
+      label: Unspecified
+      class: unspecified
+    }
+    c: Unresolved {
+      label: Unresolved
+      class: unresolved
+    }
+    a -> b: Allowed
+    a -> b: Forbidden {
+      class: forbidden
+    }
+    a -> b: Unresolved {
+      class: unresolved
+    }
+  }
+}
+)";
 	if (!specifiedIncludeMap.empty())
 	{
-		os << "# specified include list:\n";
+		os << "\n# specified include list:\n";
 		os << "\n# files:\n";
 		for (const auto& [from, _] : specifiedIncludeMap) os << from << "\n";
 		os << "\n# allowed:\n";
@@ -109,7 +139,6 @@ template <> std::ostream& toD2Output<Output>(std::ostream& os, const Output& val
 		for (const auto& [from, include] : specifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Forbidden);
 		os << "\n# unresolved:\n";
 		for (const auto& [from, include] : specifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Unresolved);
-		os << "\n";
 	}
 	if (!unspecifiedIncludeMap.empty())
 	{
@@ -118,7 +147,6 @@ template <> std::ostream& toD2Output<Output>(std::ostream& os, const Output& val
 		for (const auto& [from, _] : unspecifiedIncludeMap) os << from << ".class: unspecified\n";
 		os << "\n# resolved:\n";
 		for (const auto& [from, include] : unspecifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Allowed);
-		os << "\n";
 	}
 	return os;
 }
@@ -144,7 +172,7 @@ inline Output getOutput(const Config& config)
 		const auto groupOrCppDottedPath = pathToDotted(f.groupPath != nullptr ? *f.groupPath : cppPathList[i]);
 
 		// ensure file/group is created even if no includes are detected
-		auto& detectedIncludes = result.getIncludes(f.isSpecified, groupOrCppDottedPath);
+		auto& detectedIncludes = result.getIncludes(f.isSpecified, f.isSpecified ? groupOrCppDottedPath : f.cppDottedPath);
 
 		std::ifstream ifs(cppPathList[i]);
 		std::string line;

@@ -25,14 +25,52 @@ public:
 		// include not resolved
 
 		auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
-		cppInclude.unresolvedSet.insert(detectedIncludeStr);
+
+		// current folder used for better display
+		const fs::path currentFolderIncludePath = f.cppPath->parent_path() / fs::path(detectedIncludeStr);
+		cppInclude.unresolvedSet.insert(pathToDotted(currentFolderIncludePath));
 	}
 
 private:
+	static void handleResolvedInclude(const fs::path& resolvedIncludePath,
+		const Config& config,
+		const FileInfo& fileInfo,
+		Output& result,
+		DetectedIncludes& detectedIncludes)
+	{
+		using namespace utility;
+		const auto& f = fileInfo; // shortcut
+
+		const bool isForceIncluded = getPatternThatIncludesPath(resolvedIncludePath, config.forceIncludeScanPathList) != nullptr;
+		const bool isExcluded
+			= !isForceIncluded && getPatternThatIncludesPath(resolvedIncludePath, config.excludeScanPathList) != nullptr;
+		if (isExcluded) return;
+		// resolution not excluded
+
+		const bool isAllowed
+			= f.allowedToList == nullptr || getPatternThatIncludesPath(resolvedIncludePath, *f.allowedToList) != nullptr;
+		if (isAllowed)
+		{
+			// resolution allowed
+			const auto* includeGroupPath = getPatternThatIncludesPath(resolvedIncludePath, config.groupPathList);
+			if (includeGroupPath == f.groupPath && includeGroupPath != nullptr) return;
+			// resolution group different from file group
+
+			detectedIncludes.allowedSet.insert(
+				pathToDotted(includeGroupPath != nullptr ? *includeGroupPath : resolvedIncludePath));
+		}
+		else
+		{
+			// resolution forbidden
+			auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
+			cppInclude.forbiddenSet.insert(pathToDotted(resolvedIncludePath));
+		}
+	}
+
 	static bool handleCurrentFolderResolution(const std::string& detectedIncludeStr,
 		const Config& config,
 		const FileInfo& fileInfo,
-		Output& /* result */,
+		Output& result,
 		DetectedIncludes& detectedIncludes)
 	{
 		using namespace utility;
@@ -43,12 +81,7 @@ private:
 		if (!fs::exists(currentFolderIncludePath)) return false;
 		// include resolved
 
-		const auto* includeGroupPath = getPatternThatIncludesPath(currentFolderIncludePath, config.groupPathList);
-		if (includeGroupPath == f.groupPath && includeGroupPath != nullptr) return true;
-		// resolution group different from file group
-
-		detectedIncludes.allowedSet.insert(
-			pathToDotted(includeGroupPath != nullptr ? *includeGroupPath : currentFolderIncludePath));
+		handleResolvedInclude(currentFolderIncludePath, config, fileInfo, result, detectedIncludes);
 		return true;
 	}
 
@@ -71,7 +104,6 @@ private:
 		DetectedIncludes& detectedIncludes)
 	{
 		using namespace utility;
-		const auto& f = fileInfo; // shortcut
 
 		const fs::path detectedIncludePath = fs::path(detectedIncludeStr);
 
@@ -80,31 +112,7 @@ private:
 		// include resolved
 
 		const fs::path resolvedIncludePath = *resolutionIncludePath / detectedIncludePath;
-
-		const bool isForceIncluded = getPatternThatIncludesPath(resolvedIncludePath, config.forceIncludeScanPathList) != nullptr;
-		const bool isExcluded
-			= !isForceIncluded && getPatternThatIncludesPath(resolvedIncludePath, config.excludeScanPathList) != nullptr;
-		if (isExcluded) return true;
-		// resolution not excluded
-
-		const bool isAllowed
-			= f.allowedToList == nullptr || getPatternThatIncludesPath(resolvedIncludePath, *f.allowedToList) != nullptr;
-		if (isAllowed)
-		{
-			// resolution allowed
-			const auto* includeGroupPath = getPatternThatIncludesPath(resolvedIncludePath, config.groupPathList);
-			if (includeGroupPath == f.groupPath && includeGroupPath != nullptr) return true;
-			// resolution group different from file group
-
-			detectedIncludes.allowedSet.insert(
-				pathToDotted(includeGroupPath != nullptr ? *includeGroupPath : resolvedIncludePath));
-		}
-		else
-		{
-			// resolution forbidden
-			auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
-			cppInclude.forbiddenSet.insert(pathToDotted(resolvedIncludePath));
-		}
+		handleResolvedInclude(resolvedIncludePath, config, fileInfo, result, detectedIncludes);
 		return true;
 	}
 

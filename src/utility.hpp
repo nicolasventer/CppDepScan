@@ -51,6 +51,7 @@ namespace utility
 
 		for (const auto& segment : p.relative_path())
 		{
+			if (segment == ".") continue;
 			const auto& segmentStr = segment.string();
 			if (segmentStr.find('.') != std::string::npos) result += '"' + segmentStr + '"' + ".";
 			else
@@ -60,15 +61,15 @@ namespace utility
 		return result.substr(0, result.size() - 1);
 	}
 
-	inline bool bPathContains(const fs::path& container, const fs::path& contained)
+	inline bool isPathContained(const fs::path& path, const fs::path& container)
 	{
-		return bStartWith(container.lexically_normal().string(), contained.lexically_normal().string());
+		return bStartWith(path.lexically_normal().string(), container.lexically_normal().string());
 	}
 
 	inline const fs::path* getPatternThatIncludesPath(const fs::path& path, const std::vector<fs::path>& patternList)
 	{
 		for (const auto& pattern : patternList)
-			if (bPathContains(pattern, path)) return &pattern;
+			if (isPathContained(path, pattern)) return &pattern;
 		return nullptr;
 	}
 
@@ -77,12 +78,13 @@ namespace utility
 		const std::vector<fs::path>& excludePathList,
 		const std::vector<fs::path>& forceIncludePathList)
 	{
-		const bool isForceIncluded = getPatternThatIncludesPath(scanPath, forceIncludePathList) != nullptr;
-		const bool isExcluded = !isForceIncluded && getPatternThatIncludesPath(scanPath, excludePathList) != nullptr;
-		if (isExcluded) return;
 		if (fs::is_regular_file(scanPath))
 		{
-			if (isCppFile(scanPath.string())) cppPathList.push_back(scanPath);
+			if (!isCppFile(scanPath.string())) return;
+			const bool isForceIncluded = getPatternThatIncludesPath(scanPath, forceIncludePathList) != nullptr;
+			const bool isExcluded = !isForceIncluded && getPatternThatIncludesPath(scanPath, excludePathList) != nullptr;
+			if (isExcluded) return;
+			cppPathList.push_back(scanPath);
 		}
 		else if (fs::is_directory(scanPath))
 		{

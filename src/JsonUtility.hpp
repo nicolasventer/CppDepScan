@@ -58,7 +58,7 @@ namespace json_utility
 		}
 		while (it != itEnd)
 		{
-			os << ",\n";
+			os << ", ";
 			func(*it);
 			++it;
 		}

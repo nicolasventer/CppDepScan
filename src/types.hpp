@@ -62,7 +62,7 @@ struct Config
 	const std::vector<fs::path>* getAllowedToList(const fs::path& cppPath) const
 	{
 		for (const auto& [from, index] : allowedIncludeIndexMap)
-			if (utility::bPathContains(cppPath, from)) return &allowedIncludeListList[index];
+			if (utility::isPathContained(cppPath, from)) return &allowedIncludeListList[index];
 		return nullptr;
 	}
 
