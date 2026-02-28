@@ -26,34 +26,35 @@ namespace fs = std::filesystem;
 struct Config
 {
 	std::vector<fs::path> scanPathList;
-	std::vector<fs::path> includePathList;
-	std::vector<fs::path> excludePathList;
-	std::vector<fs::path> forceIncludePathList;
-	std::vector<fs::path> outputPathList;					   // empty = stdout
+	std::vector<fs::path> excludeScanPathList;
+	std::vector<fs::path> forceIncludeScanPathList;
+	std::vector<fs::path> outputPathList; // empty = stdout
+	bool bKeepStdInOutput = false;		  // default: false
+	bool bUseJsonForStdOutput = false;	  // default: D2 lang
+	std::vector<fs::path> resolutionIncludePathList;
 	std::map<fs::path, size_t> allowedIncludeIndexMap;		   // from -> index of allowedIncludeListList
 	std::vector<std::vector<fs::path>> allowedIncludeListList; // list of allowed include lists
-	bool bIncludeStd = false;								   // default: false
-	bool bOutputJson = false;								   // default: D2 lang
 	std::vector<fs::path> groupPathList;
 
 	// automatically filled
-	std::vector<std::string> stdIncludePathList;
+	std::vector<std::string> stdResolutionIncludePathList;
 };
 
-std::string escapeJson(const std::string& s)
+inline std::ostream& toJsonString(std::ostream& os, const std::string& s)
 {
-	std::string result;
+	os << "\"";
 	for (const auto c : s)
 	{
-		if (c == '"') result += "\\\"";
+		if (c == '"') os << "\\\"";
 		else
-			result += c;
+			os << c;
 	}
-	return result;
+	os << "\"";
+	return os;
 }
 
 template <typename T>
-void toJsonObject(std::ostream& os,
+std::ostream& toJsonObject(std::ostream& os,
 	const std::string& indent,
 	const T& range,
 	const std::function<void(const typename T::value_type&, const std::string& indent)>& func)
@@ -75,10 +76,11 @@ void toJsonObject(std::ostream& os,
 		++it;
 	}
 	os << "\n" << indent << "}";
+	return os;
 }
 
 template <typename T>
-void toJsonArray(std::ostream& os, const T& range, const std::function<void(const typename T::value_type&)>& func)
+std::ostream& toJsonArray(std::ostream& os, const T& range, const std::function<void(const typename T::value_type&)>& func)
 {
 	os << "[";
 	auto it = range.begin();
@@ -95,147 +97,173 @@ void toJsonArray(std::ostream& os, const T& range, const std::function<void(cons
 		++it;
 	}
 	os << "]";
+	return os;
 }
 
-enum class EIncludeStatus : uint8_t
+enum class EDetectedIncludeStatus : uint8_t
 {
 	Allowed,
 	Forbidden,
 	Unresolved,
 };
 
-struct Include
+struct DetectedIncludes
 {
 	std::set<std::string> allowedSet;
 	std::set<std::string> forbiddenSet;
 	std::set<std::string> unresolvedSet;
-
-	std::ostream& toJsonString(std::ostream& os, const std::string& indent) const
-	{
-		auto members
-			= {std::make_pair("allowedSet", &allowedSet), {"forbiddenSet", &forbiddenSet}, {"unresolvedSet", &unresolvedSet}};
-
-		toJsonObject(os,
-			indent,
-			members,
-			[&](const auto& member, const std::string& /* indent */)
-			{
-				os << "\"" << escapeJson(member.first) << "\"" << ": ";
-				toJsonArray(os, *member.second, [&](const auto& value) { os << "\"" << escapeJson(value) << "\""; });
-			});
-
-		return os;
-	}
-
-	std::ostream& toD2String(std::ostream& os, const std::string& from, EIncludeStatus status) const
-	{
-		if (status == EIncludeStatus::Allowed)
-			for (const auto& to : allowedSet) os << from << " -> " << to << "\n";
-		else if (status == EIncludeStatus::Forbidden)
-			for (const auto& to : forbiddenSet) os << from << " -> " << to << ": { class: forbidden }\n";
-		else
-			for (const auto& to : unresolvedSet) os << "# " << from << " -> " << to << "\n";
-		return os;
-	}
 };
+
+// same as DetectedIncludes, but since origin is unspecified, resolved includes are allowed
+using UnspecifiedDetectedIncludes = DetectedIncludes;
 
 struct Output
 {
-	std::map<std::string, Include> specifiedIncludeMap;	  // from -> Include
-	std::map<std::string, Include> unspecifiedIncludeMap; // TODO: change type to UnspecifiedInclude
+	// specified origin -> DetectedIncludes
+	std::map<std::string, DetectedIncludes> specifiedIncludesMap;
+	// unspecified origin -> UnspecifiedDetectedIncludes
+	std::map<std::string, UnspecifiedDetectedIncludes> unspecifiedIncludesMap;
 
-	std::ostream& toJsonString(std::ostream& os) const
+	auto& getIncludes(bool isSpecified, const std::string& dottedPath)
 	{
-		auto members
-			= {std::make_pair("specifiedIncludeMap", &specifiedIncludeMap), {"unspecifiedIncludeMap", &unspecifiedIncludeMap}};
-		toJsonObject(os,
-			"",
-			members,
-			[&](const auto& member, const std::string& indent)
-			{
-				os << "\"" << escapeJson(member.first) << "\": ";
-				toJsonObject(os,
-					indent,
-					*member.second,
-					[&](const auto& value, const std::string& indent)
-					{
-						os << "\"" << escapeJson(value.first) << "\": ";
-						value.second.toJsonString(os, indent);
-					});
-			});
-		return os;
-	}
-
-	std::ostream& toD2String(std::ostream& os) const
-	{
-		os << R"(classes: {
-  forbidden: {
-    style: {
-      stroke: "red"
-    }
-  }
-  unspecified: {
-    style: {
-      stroke: "orange"
-    }
-  }
-}
-)";
-		if (!specifiedIncludeMap.empty())
-		{
-			os << "# specified include list:\n";
-			os << "\n# files:\n";
-			for (const auto& [from, _] : specifiedIncludeMap) os << from << "\n";
-			os << "\n# allowed:\n";
-			for (const auto& [from, include] : specifiedIncludeMap) include.toD2String(os, from, EIncludeStatus::Allowed);
-			os << "\n# forbidden:\n";
-			for (const auto& [from, include] : specifiedIncludeMap) include.toD2String(os, from, EIncludeStatus::Forbidden);
-			os << "\n# unresolved:\n";
-			for (const auto& [from, include] : specifiedIncludeMap) include.toD2String(os, from, EIncludeStatus::Unresolved);
-			os << "\n";
-		}
-		if (!unspecifiedIncludeMap.empty())
-		{
-			os << "\n# unspecified include list:\n";
-			os << "\n# files:\n";
-			for (const auto& [from, _] : unspecifiedIncludeMap) os << from << ".class: unspecified\n";
-			os << "\n# resolved:\n";
-			for (const auto& [from, include] : unspecifiedIncludeMap) include.toD2String(os, from, EIncludeStatus::Allowed);
-			os << "\n";
-		}
-		return os;
+		return isSpecified ? specifiedIncludesMap[dottedPath] : unspecifiedIncludesMap[dottedPath];
 	}
 };
 
+template <typename T> std::ostream& toJsonOutput(std::ostream& os, const std::string& /* indent */, const T& /* value */)
+{
+	static_assert(sizeof(T) == 0, "toJsonOutput not implemented for this type");
+	return os;
+}
+
+template <>
+std::ostream& toJsonOutput<DetectedIncludes>(std::ostream& os, const std::string& indent, const DetectedIncludes& value)
+{
+	auto members = {std::make_pair("allowedSet", &value.allowedSet),
+		{"forbiddenSet", &value.forbiddenSet},
+		{"unresolvedSet", &value.unresolvedSet}};
+
+	toJsonObject(os,
+		indent,
+		members,
+		[&](const auto& member, const std::string& /* indent */)
+		{
+			toJsonArray(
+				toJsonString(os, member.first) << ": ", *member.second, [&](const auto& value) { toJsonString(os, value); });
+		});
+
+	return os;
+}
+
+template <> std::ostream& toJsonOutput<Output>(std::ostream& os, const std::string& indent, const Output& value)
+{
+	auto members = {std::make_pair("specifiedIncludeMap", &value.specifiedIncludesMap),
+		{"unspecifiedIncludeMap", &value.unspecifiedIncludesMap}};
+
+	toJsonObject(os,
+		indent,
+		members,
+		[&](const auto& member, const std::string& indent)
+		{
+			toJsonObject(toJsonString(os, member.first) << ": ",
+				indent,
+				*member.second,
+				[&](const auto& value, const std::string& indent)
+				{ toJsonOutput(toJsonString(os, value.first) << ": ", indent, value.second); });
+		});
+	return os;
+}
+
+template <typename...> struct ToD2OutputUnsupported;
+template <typename T, typename... U> std::ostream& toD2Output(std::ostream& os, const T& /* value */, const U&... /* args */)
+{
+	static_assert(sizeof(ToD2OutputUnsupported<T, U...>) == 0, "toD2Output not implemented for these types");
+	return os;
+}
+
+template <>
+std::ostream& toD2Output<DetectedIncludes, std::string, EDetectedIncludeStatus>(
+	std::ostream& os, const DetectedIncludes& value, const std::string& from, const EDetectedIncludeStatus& status)
+{
+	if (status == EDetectedIncludeStatus::Allowed)
+		for (const auto& to : value.allowedSet) os << from << " -> " << to << "\n";
+	else if (status == EDetectedIncludeStatus::Forbidden)
+		for (const auto& to : value.forbiddenSet) os << from << " -> " << to << ": { class: forbidden }\n";
+	else
+		for (const auto& to : value.unresolvedSet) os << "# " << from << " -> " << to << "\n";
+	return os;
+}
+
+template <> std::ostream& toD2Output<Output>(std::ostream& os, const Output& value)
+{
+	const auto& specifiedIncludeMap = value.specifiedIncludesMap;
+	const auto& unspecifiedIncludeMap = value.unspecifiedIncludesMap;
+	os << R"(classes: {
+		forbidden: {
+		  style: {
+			stroke: "red"
+		  }
+		}
+		unspecified: {
+		  style: {
+			stroke: "orange"
+		  }
+		}
+	  }
+	  )";
+	if (!specifiedIncludeMap.empty())
+	{
+		os << "# specified include list:\n";
+		os << "\n# files:\n";
+		for (const auto& [from, _] : specifiedIncludeMap) os << from << "\n";
+		os << "\n# allowed:\n";
+		for (const auto& [from, include] : specifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Allowed);
+		os << "\n# forbidden:\n";
+		for (const auto& [from, include] : specifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Forbidden);
+		os << "\n# unresolved:\n";
+		for (const auto& [from, include] : specifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Unresolved);
+		os << "\n";
+	}
+	if (!unspecifiedIncludeMap.empty())
+	{
+		os << "\n# unspecified include list:\n";
+		os << "\n# files:\n";
+		for (const auto& [from, _] : unspecifiedIncludeMap) os << from << ".class: unspecified\n";
+		os << "\n# resolved:\n";
+		for (const auto& [from, include] : unspecifiedIncludeMap) toD2Output(os, include, from, EDetectedIncludeStatus::Allowed);
+		os << "\n";
+	}
+	return os;
+}
+
 namespace utility
 {
-	static bool bStartWith(std::string_view str, std::string_view prefix, std::string_view& subStr)
+	inline bool bStartWith(std::string_view str, std::string_view prefix, std::string_view* strWithoutPrefix = nullptr)
 	{
 		if (str.size() < prefix.size()) return false;
 		const bool result = str.substr(0, prefix.size()) == prefix;
-		if (result) subStr = str.substr(prefix.size());
+		if (result && strWithoutPrefix) *strWithoutPrefix = str.substr(prefix.size());
 		return result;
 	}
 
-	static bool bEndWith(std::string_view str, std::string_view suffix, std::string_view& subStr)
+	inline bool bEndWith(std::string_view str, std::string_view suffix, std::string_view* strWithoutSuffix = nullptr)
 	{
 		if (str.size() < suffix.size()) return false;
 		auto offset = str.size() - suffix.size();
 		const bool result = str.substr(offset) == suffix;
-		if (result) subStr = str.substr(0, offset);
+		if (result && strWithoutSuffix) *strWithoutSuffix = str.substr(0, offset);
 		return result;
 	}
 
-	static bool isCppFile(const std::string& filePath)
+	inline bool isCppFile(const std::string& filePath)
 	{
 		static auto cppExtensionList = {".h", ".hpp", ".hxx", ".hh", ".h++", ".c", ".cc", ".cpp", ".cxx"};
-		static std::string_view subStr;
 		for (const auto* cppExtension : cppExtensionList)
-			if (bEndWith(filePath, cppExtension, subStr)) return true;
+			if (bEndWith(filePath, cppExtension)) return true;
 		return false;
 	}
 
-	static std::string pathToDotted(const fs::path& p)
+	inline std::string pathToDotted(const fs::path& p)
 	{
 		std::string result;
 
@@ -250,26 +278,26 @@ namespace utility
 		return result.substr(0, result.size() - 1);
 	}
 
-	static bool isPathInclude(const fs::path& p1, const fs::path& p2)
+	inline bool bPathContains(const fs::path& container, const fs::path& contained)
 	{
-		std::string_view subStr;
-		return bStartWith(p1.lexically_normal().string(), p2.lexically_normal().string(), subStr);
+		return bStartWith(container.lexically_normal().string(), contained.lexically_normal().string());
 	}
 
-	static const fs::path* getPathThatIncludeFromList(const fs::path& p1, const std::vector<fs::path>& pathList)
+	inline const fs::path* getPatternThatIncludesPath(const fs::path& path, const std::vector<fs::path>& patternList)
 	{
-		for (const auto& p : pathList)
-			if (isPathInclude(p1, p)) return &p;
+		// TODO: check if getPatternThatIncludesPath is correct
+		for (const auto& pattern : patternList)
+			if (bPathContains(pattern, path)) return &pattern;
 		return nullptr;
 	}
 
-	static void updateCppPathList(const fs::path& scanPath,
+	inline void updateCppPathList(const fs::path& scanPath,
 		std::vector<fs::path>& cppPathList,
 		const std::vector<fs::path>& excludePathList,
 		const std::vector<fs::path>& forceIncludePathList)
 	{
-		const bool isForceIncluded = getPathThatIncludeFromList(scanPath, forceIncludePathList) != nullptr;
-		const bool isExcluded = !isForceIncluded && getPathThatIncludeFromList(scanPath, excludePathList) != nullptr;
+		const bool isForceIncluded = getPatternThatIncludesPath(scanPath, forceIncludePathList) != nullptr;
+		const bool isExcluded = !isForceIncluded && getPatternThatIncludesPath(scanPath, excludePathList) != nullptr;
 		if (isExcluded) return;
 		if (fs::is_regular_file(scanPath))
 		{
@@ -278,21 +306,12 @@ namespace utility
 		else if (fs::is_directory(scanPath))
 		{
 			for (const auto& file : fs::directory_iterator(scanPath))
-			{
-				if (file.is_directory())
-				{
-					updateCppPathList(file.path(), cppPathList, excludePathList, forceIncludePathList);
-				}
-				else
-				{
-					if (isCppFile(file.path().string())) cppPathList.push_back(file.path());
-				}
-			}
+				updateCppPathList(file.path(), cppPathList, excludePathList, forceIncludePathList);
 		}
 	}
 } // namespace utility
 
-static std::vector<std::string> getStdIncludePathList()
+inline std::vector<std::string> getStdIncludePathList()
 {
 	std::vector<std::string> pathList;
 
@@ -352,16 +371,152 @@ static std::vector<std::string> getStdIncludePathList()
 	return pathList;
 }
 
-static const std::vector<fs::path>* getAllowedToList(const std::map<fs::path, size_t>& allowedIncludeIndexMap,
+inline const std::vector<fs::path>* getAllowedToList(const std::map<fs::path, size_t>& allowedIncludeIndexMap,
 	const std::vector<std::vector<fs::path>>& allowedIncludeListList,
 	const fs::path& cppPath)
 {
 	for (const auto& [from, index] : allowedIncludeIndexMap)
-		if (utility::isPathInclude(cppPath, from)) return &allowedIncludeListList[index];
+		if (utility::bPathContains(cppPath, from)) return &allowedIncludeListList[index];
 	return nullptr;
 }
 
-static Output getOutput(const Config& config)
+inline const fs::path* getResolutionIncludePath(
+	const fs::path& detectedIncludePath, const std::vector<fs::path>& resolutionIncludePathList)
+{
+	for (const auto& resolutionIncludePath : resolutionIncludePathList)
+	{
+		const fs::path& newIncludePath = resolutionIncludePath / detectedIncludePath;
+		if (fs::exists(newIncludePath)) return &resolutionIncludePath;
+	}
+	return nullptr;
+}
+
+struct FileInfo
+{
+	FileInfo(const fs::path& cppPath, const Config& config) :
+		cppPath(&cppPath), allowedToList(getAllowedToList(config.allowedIncludeIndexMap, config.allowedIncludeListList, cppPath)),
+		groupPath(utility::getPatternThatIncludesPath(cppPath, config.groupPathList)),
+		cppDottedPath(utility::pathToDotted(cppPath)),
+		isSpecified(config.allowedIncludeIndexMap.empty() || allowedToList != nullptr)
+	{
+	}
+
+	const fs::path* cppPath; // cannot be nullptr
+
+	const std::vector<fs::path>* allowedToList; // can be nullptr
+	const fs::path* groupPath;					// can be nullptr
+
+	std::string cppDottedPath;
+	bool isSpecified;
+};
+
+inline bool handleCurrentFolderResolution(const std::string& detectedIncludeStr,
+	const Config& config,
+	const FileInfo& fileInfo,
+	Output& /* result */,
+	DetectedIncludes& detectedIncludes)
+{
+	using namespace utility;
+	const auto& f = fileInfo; // shortcut
+
+	const fs::path currentFolderIncludePath = f.cppPath->parent_path() / fs::path(detectedIncludeStr);
+
+	if (!fs::exists(currentFolderIncludePath)) return false;
+	// include resolved
+
+	const auto* includeGroupPath = getPatternThatIncludesPath(currentFolderIncludePath, config.groupPathList);
+	if (includeGroupPath == f.groupPath && includeGroupPath != nullptr) return true;
+	// resolution group different from file group
+
+	detectedIncludes.allowedSet.insert(pathToDotted(includeGroupPath != nullptr ? *includeGroupPath : currentFolderIncludePath));
+	return true;
+}
+
+// returns true if the include is resolved
+inline bool handleIncludePathListResolution(const std::string& detectedIncludeStr,
+	const Config& config,
+	const FileInfo& fileInfo,
+	Output& result,
+	DetectedIncludes& detectedIncludes)
+{
+	using namespace utility;
+	const auto& f = fileInfo; // shortcut
+
+	const fs::path detectedIncludePath = fs::path(detectedIncludeStr);
+
+	const auto* resolutionIncludePath = getResolutionIncludePath(detectedIncludePath, config.resolutionIncludePathList);
+	if (resolutionIncludePath == nullptr) return false;
+	// include resolved
+
+	const fs::path resolvedIncludePath = *resolutionIncludePath / detectedIncludePath;
+
+	const bool isForceIncluded = getPatternThatIncludesPath(resolvedIncludePath, config.forceIncludeScanPathList) != nullptr;
+	const bool isExcluded
+		= !isForceIncluded && getPatternThatIncludesPath(resolvedIncludePath, config.excludeScanPathList) != nullptr;
+	if (isExcluded) return true;
+	// resolution not excluded
+
+	const bool isAllowed
+		= f.allowedToList == nullptr || getPatternThatIncludesPath(resolvedIncludePath, *f.allowedToList) != nullptr;
+	if (isAllowed)
+	{
+		// resolution allowed
+		const auto* includeGroupPath = getPatternThatIncludesPath(resolvedIncludePath, config.groupPathList);
+		if (includeGroupPath == f.groupPath && includeGroupPath != nullptr) return true;
+		// resolution group different from file group
+
+		detectedIncludes.allowedSet.insert(pathToDotted(includeGroupPath != nullptr ? *includeGroupPath : resolvedIncludePath));
+	}
+	else
+	{
+		// resolution forbidden
+		auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
+		cppInclude.forbiddenSet.insert(pathToDotted(resolvedIncludePath));
+	}
+	return true;
+}
+
+inline bool handleStdResolution(const std::string& detectedIncludeStr,
+	const Config& config,
+	const FileInfo& /* fileInfo */,
+	Output& /* result */,
+	DetectedIncludes& detectedIncludes)
+{
+	for (const auto& stdIncludePath : config.stdResolutionIncludePathList)
+	{
+		const fs::path& newIncludePath = stdIncludePath / fs::path(detectedIncludeStr);
+		if (!fs::exists(newIncludePath)) continue;
+		// std include resolved
+
+		if (!config.bKeepStdInOutput) return true;
+		// keep std in output
+
+		detectedIncludes.allowedSet.insert(detectedIncludeStr);
+		return true;
+	}
+	return false;
+}
+
+inline void handleResolution(const std::string& detectedIncludeStr,
+	const Config& config,
+	const FileInfo& fileInfo,
+	Output& result,
+	DetectedIncludes& detectedIncludes)
+{
+	using namespace utility;
+	const auto& f = fileInfo; // shortcut
+
+	if (handleCurrentFolderResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
+		|| handleIncludePathListResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
+		|| handleStdResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes))
+		return;
+	// include not resolved
+
+	auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
+	cppInclude.unresolvedSet.insert(detectedIncludeStr);
+}
+
+inline Output getOutput(const Config& config)
 {
 	using namespace utility;
 
@@ -369,91 +524,32 @@ static Output getOutput(const Config& config)
 
 	std::vector<fs::path> cppPathList;
 	for (const auto& scanPath : config.scanPathList)
-		updateCppPathList(scanPath, cppPathList, config.excludePathList, config.forceIncludePathList);
+		updateCppPathList(scanPath, cppPathList, config.excludeScanPathList, config.forceIncludeScanPathList);
 
 	std::cout << "start parsing..." << "\n";
 
 	for (size_t i = 0; i < cppPathList.size(); ++i)
 	{
 		std::cout << "\r[" << (i + 1) << "/" << cppPathList.size() << "]" << std::flush;
-		const auto& cppPath = cppPathList[i];
-		const auto* allowedToList = getAllowedToList(config.allowedIncludeIndexMap, config.allowedIncludeListList, cppPath);
-		const auto* groupPath = getPathThatIncludeFromList(cppPath, config.groupPathList);
-		const auto dottedPath = pathToDotted(groupPath != nullptr ? *groupPath : cppPath);
-		const auto cppDottedPath = pathToDotted(cppPath); // used only for forbidden or unresolved includes
-		const bool isSpecified = config.allowedIncludeIndexMap.empty() || allowedToList != nullptr;
-		auto& include_ = isSpecified ? result.specifiedIncludeMap[dottedPath] : result.unspecifiedIncludeMap[dottedPath];
-		std::ifstream ifs(cppPath);
+		FileInfo fileInfo(cppPathList[i], config);
+		const auto& f = fileInfo; // shortcut
+		const auto groupOrCppDottedPath = pathToDotted(f.groupPath != nullptr ? *f.groupPath : cppPathList[i]);
+		auto& detectedIncludes = result.getIncludes(f.isSpecified, groupOrCppDottedPath);
+		std::ifstream ifs(cppPathList[i]);
 		std::string line;
+
 		while (std::getline(ifs, line))
 		{
 			std::string_view substr;
-			if (!bStartWith(line, "#include ", substr)) continue;
+			if (!bStartWith(line, "#include ", &substr)) continue;
+			// include detected
+
 			auto startPos = substr.find_first_of("\"<");
 			if (startPos == std::string::npos) continue;
 			auto endPos = substr.find_first_of("\">", startPos + 1);
-			const std::string include = static_cast<std::string>(substr.substr(startPos + 1, endPos - startPos - 1));
-			const fs::path& includePath = cppPath.parent_path() / fs::path(include);
-			if (fs::exists(includePath))
-			{
-				const auto* includeGroupPath = getPathThatIncludeFromList(includePath, config.groupPathList);
-				if (includeGroupPath != groupPath || includeGroupPath == nullptr)
-					include_.allowedSet.insert(pathToDotted(includeGroupPath != nullptr ? *includeGroupPath : includePath));
-			}
-			else
-			{
-				bool isResolved = false;
-				for (const auto& includePath : config.includePathList)
-				{
-					const fs::path& newIncludePath = includePath / fs::path(include);
-					if (fs::exists(newIncludePath))
-					{
-						const bool isAllowed
-							= allowedToList == nullptr || getPathThatIncludeFromList(newIncludePath, *allowedToList) != nullptr;
-						const bool isForceIncluded
-							= getPathThatIncludeFromList(newIncludePath, config.forceIncludePathList) != nullptr;
-						const bool isExcluded
-							= !isForceIncluded && getPathThatIncludeFromList(newIncludePath, config.excludePathList) != nullptr;
-						if (!isExcluded)
-						{
-							if (isAllowed)
-							{
-								const auto* includeGroupPath = getPathThatIncludeFromList(newIncludePath, config.groupPathList);
-								if (includeGroupPath != groupPath || includeGroupPath == nullptr)
-									include_.allowedSet.insert(
-										pathToDotted(includeGroupPath != nullptr ? *includeGroupPath : newIncludePath));
-							}
-							else
-							{
-								auto& cppInclude = isSpecified ? result.specifiedIncludeMap[cppDottedPath]
-															   : result.unspecifiedIncludeMap[cppDottedPath];
-								cppInclude.forbiddenSet.insert(pathToDotted(newIncludePath));
-							}
-						}
-						isResolved = true;
-						break;
-					}
-				}
-				if (!isResolved)
-				{
-					for (const auto& stdIncludePath : config.stdIncludePathList)
-					{
-						const fs::path& newIncludePath = stdIncludePath / fs::path(include);
-						if (fs::exists(newIncludePath))
-						{
-							if (config.bIncludeStd) include_.allowedSet.insert(include);
-							isResolved = true;
-							break;
-						}
-					}
-				}
-				if (!isResolved)
-				{
-					auto& cppInclude
-						= isSpecified ? result.specifiedIncludeMap[cppDottedPath] : result.unspecifiedIncludeMap[cppDottedPath];
-					cppInclude.unresolvedSet.insert(include);
-				}
-			}
+			const std::string detectedIncludeStr = static_cast<std::string>(substr.substr(startPos + 1, endPos - startPos - 1));
+
+			handleResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes);
 		}
 	}
 
@@ -465,14 +561,22 @@ static Output getOutput(const Config& config)
 static void usage(const char* prog)
 {
 	std::cerr << "Usage: " << prog << " [options] <scan_path> [scan_path ...]\n"
-			  << "  -I <path>     Add include path for resolution (folder or file)\n"
-			  << "  -e <path>     Exclude path (folder or file); may be repeated; use -e !<path> to force-include\n"
-			  << "  -A, --allowed <from> <to>  Allowed include: <from> may include <to>; may be repeated\n"
-			  << "  --std      Include standard library headers in output (default: false)\n"
-			  << "  --json        Output JSON (default: D2 lang)\n"
-			  << "  -g, --group [path]  Group D2 diagram by directory; path may be repeated (default: off)\n"
-			  << "  -o <file>     Write output to file; may be repeated; .json → JSON, else D2 (default: stdout)\n"
-			  << "  -h, --help    Print this help\n";
+			  << "\n"
+			  << "Scan paths:\n"
+			  << "  -e <path>                   Exclude path for scanning (folder or file); may be repeated\n"
+			  << "  -e !<path>                  Keep path for scanning even if it lies under an exclude\n"
+			  << "\n"
+			  << "Resolution:\n"
+			  << "  -I <path>                   Add include path for resolution (folder or file); may be repeated\n"
+			  << "  -A, --allowed <from> <to>   <from> may include <to>; may be repeated\n"
+			  << "\n"
+			  << "Output:\n"
+			  << "  -o <file>                   Write output to file; may be repeated; .json → JSON, else D2\n"
+			  << "  --json                       Use JSON for stdout (default: D2)\n"
+			  << "  --std                        Include standard library headers in output (default: off)\n"
+			  << "  -g, --group <path>           Gather files by group; may be repeated\n"
+			  << "\n"
+			  << "  -h, --help                  Print this help\n";
 }
 
 static bool parseArgs(int argc, char** argv, Config& c)
@@ -484,15 +588,15 @@ static bool parseArgs(int argc, char** argv, Config& c)
 		{
 			std::string path = argv[++i];
 			if (path.back() == '/') path.pop_back();
-			c.includePathList.emplace_back(path);
+			c.resolutionIncludePathList.emplace_back(path);
 		}
 		else if (a == "-e" && i + 1 < argc)
 		{
 			std::string path = argv[++i];
 			if (path.back() == '/') path.pop_back();
-			if (path.front() == '!') c.forceIncludePathList.emplace_back(path.substr(1));
+			if (path.front() == '!') c.forceIncludeScanPathList.emplace_back(path.substr(1));
 			else
-				c.excludePathList.emplace_back(path);
+				c.excludeScanPathList.emplace_back(path);
 		}
 		else if ((a == "-A" || a == "--allowed") && i + 2 < argc)
 		{
@@ -502,15 +606,18 @@ static bool parseArgs(int argc, char** argv, Config& c)
 			if (!toStr.empty() && toStr.back() == '/') toStr.pop_back();
 			const fs::path fromPath(fromStr);
 			if (c.allowedIncludeIndexMap.find(fromPath) == c.allowedIncludeIndexMap.end())
+			{
 				c.allowedIncludeIndexMap[fromPath] = c.allowedIncludeListList.size();
+				c.allowedIncludeListList.emplace_back();
+			}
 			c.allowedIncludeListList[c.allowedIncludeIndexMap[fromPath]].emplace_back(toStr);
 		}
 		else if (a == "-o" && i + 1 < argc)
 			c.outputPathList.emplace_back(argv[++i]);
 		else if (a == "--std")
-			c.bIncludeStd = true;
+			c.bKeepStdInOutput = true;
 		else if (a == "--json")
-			c.bOutputJson = true;
+			c.bUseJsonForStdOutput = true;
 		else if ((a == "-g" || a == "--group") && i + 1 < argc)
 		{
 			std::string path = argv[++i];
@@ -520,7 +627,7 @@ static bool parseArgs(int argc, char** argv, Config& c)
 		else if (a == "-h" || a == "--help")
 		{
 			usage(argv[0]);
-			return false;
+			return false; // TODO: see how to still return EXIT_SUCCESS for -h/--help
 		}
 		else if (!a.empty() && a[0] == '-')
 		{
@@ -537,40 +644,39 @@ static bool parseArgs(int argc, char** argv, Config& c)
 		usage(argv[0]);
 		return false;
 	}
-	c.stdIncludePathList = getStdIncludePathList();
+	c.stdResolutionIncludePathList = getStdIncludePathList();
 	return true;
 }
 
 int main(int argc, char** argv)
 {
 	Config cfg;
-	if (!parseArgs(argc, argv, cfg)) return 1;
+	if (!parseArgs(argc, argv, cfg)) return EXIT_FAILURE;
 
 	const Output output = getOutput(cfg);
 	if (cfg.outputPathList.empty())
 	{
 		std::cout << "\n";
-		if (cfg.bOutputJson) output.toJsonString(std::cout);
+		if (cfg.bUseJsonForStdOutput) toJsonOutput(std::cout, "", output);
 		else
-			output.toD2String(std::cout);
+			toD2Output(std::cout, output);
 	}
 	else
 	{
 		for (const auto& outputPath : cfg.outputPathList)
 		{
-			std::string_view subStr;
-			if (outputPath.has_parent_path()) std::filesystem::create_directories(outputPath.parent_path());
+			if (outputPath.has_parent_path()) fs::create_directories(outputPath.parent_path());
 			std::ofstream ofs(outputPath);
 			if (!ofs.is_open())
 			{
 				std::cerr << "Failed to open output file: " << outputPath << "\n";
 				continue;
 			}
-			if (utility::bEndWith(outputPath.string(), ".json", subStr)) output.toJsonString(ofs);
+			if (utility::bEndWith(outputPath.string(), ".json")) toJsonOutput(ofs, "", output);
 			else
-				output.toD2String(ofs);
+				toD2Output(ofs, output);
 			std::cout << "Generated: " << outputPath << "\n";
 		}
 	}
-	return 0;
+	return EXIT_SUCCESS;
 }
