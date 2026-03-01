@@ -1,0 +1,36 @@
+{
+  "specifiedIncludeMap": {
+    "sample.src.\"legacy.c\"": {
+      "allowedSet": ["sample.src.app.\"app.hpp\""],
+      "forbiddenSet": [],
+      "unresolvedSet": []
+    },
+    "sample.src.\"main.cpp\"": {
+      "allowedSet": ["sample.include.\"extra.hpp\"", "sample.src.app.\"app.hpp\"", "sample.src.lib.\"private.hpp\"", "sample.src.lib.\"public.hpp\""],
+      "forbiddenSet": [],
+      "unresolvedSet": ["sample.src.\"nonexistent.h\""]
+    },
+    "sample.src.app.\"app.cpp\"": {
+      "allowedSet": ["sample.src.app.\"app.hpp\""],
+      "forbiddenSet": [],
+      "unresolvedSet": []
+    },
+    "sample.src.app.\"app.hpp\"": {
+      "allowedSet": [],
+      "forbiddenSet": [],
+      "unresolvedSet": []
+    },
+    "sample.src.lib.\"private.hpp\"": {
+      "allowedSet": [],
+      "forbiddenSet": [],
+      "unresolvedSet": []
+    },
+    "sample.src.lib.\"public.hpp\"": {
+      "allowedSet": [],
+      "forbiddenSet": [],
+      "unresolvedSet": []
+    }
+  },
+  "unspecifiedIncludeMap": {
+  }
+}

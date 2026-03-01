@@ -1,0 +1,56 @@
+classes: {
+  forbidden: {
+    style: {
+      stroke: "red"
+    }
+  }
+  unspecified: {
+    style: {
+      stroke: "orange"
+	  fill: "orange"
+    }
+  }
+  unresolved: {
+    style: {
+      stroke: "gray"
+	  fill: "gray"
+    }
+  }
+}
+vars: {
+  d2-legend: {
+    a: {
+      label: Specified
+    }
+    b: Unspecified {
+      label: Unspecified
+      class: unspecified
+    }
+    c: Unresolved {
+      label: Unresolved
+      class: unresolved
+    }
+    a -> b: Allowed
+    a -> b: Forbidden {
+      class: forbidden
+    }
+    a -> b: Unresolved {
+      class: unresolved
+    }
+  }
+}
+
+# specified include list:
+
+# files:
+sample.external
+sample.include
+sample.src
+sample.src."main.cpp"
+
+# allowed:
+sample.src -> sample.include
+
+# forbidden:
+
+# unresolved:

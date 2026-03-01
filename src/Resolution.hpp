@@ -9,26 +9,16 @@
 class Resolution
 {
 public:
-	static void handleResolution(const std::string& detectedIncludeStr,
+	static bool handleResolution(const std::string& detectedIncludeStr,
 		const Config& config,
 		const FileInfo& fileInfo,
 		Output& result,
 		DetectedIncludes& detectedIncludes)
 	{
-		using namespace utility;
-		const auto& f = fileInfo; // shortcut
-
-		if (handleCurrentFolderResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
-			|| handleIncludePathListResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
-			|| handleStdResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes))
-			return;
-		// include not resolved
-
-		auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
-
-		// current folder used for better display
-		const fs::path currentFolderIncludePath = f.cppPath->parent_path() / fs::path(detectedIncludeStr);
-		cppInclude.unresolvedSet.insert(pathToDotted(currentFolderIncludePath));
+		return handleCurrentFolderResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
+			   || handleIncludePathListResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
+			   || handleStdResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
+			   || handleUnresolved(detectedIncludeStr, config, fileInfo, result, detectedIncludes);
 	}
 
 private:
@@ -134,6 +124,31 @@ private:
 			detectedIncludes.allowedSet.insert(detectedIncludeStr);
 			return true;
 		}
+		return false;
+	}
+
+	static bool handleUnresolved(const std::string& detectedIncludeStr,
+		const Config& config,
+		const FileInfo& fileInfo,
+		Output& result,
+		DetectedIncludes& /* detectedIncludes */)
+	{
+		using namespace utility;
+		const auto& f = fileInfo; // shortcut
+
+		auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
+
+		// current folder used for better display
+		const fs::path currentFolderIncludePath = f.cppPath->parent_path() / fs::path(detectedIncludeStr);
+
+		const bool isForceIncluded
+			= getPatternThatIncludesPath(currentFolderIncludePath, config.forceIncludeScanPathList) != nullptr;
+		const bool isExcluded
+			= !isForceIncluded && getPatternThatIncludesPath(currentFolderIncludePath, config.excludeScanPathList) != nullptr;
+		if (isExcluded) return false;
+		// unresolved not excluded
+
+		cppInclude.unresolvedSet.insert(pathToDotted(currentFolderIncludePath));
 		return false;
 	}
 };

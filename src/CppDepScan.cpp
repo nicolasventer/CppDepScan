@@ -108,11 +108,13 @@ template <> StreamAdapter toD2Output<Output>(const Output& value)
   unspecified: {
     style: {
       stroke: "orange"
+	  fill: "orange"
     }
   }
   unresolved: {
     style: {
       stroke: "gray"
+	  fill: "gray"
     }
   }
 }

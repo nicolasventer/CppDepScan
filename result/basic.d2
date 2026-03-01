@@ -1,0 +1,74 @@
+classes: {
+  forbidden: {
+    style: {
+      stroke: "red"
+    }
+  }
+  unspecified: {
+    style: {
+      stroke: "orange"
+	  fill: "orange"
+    }
+  }
+  unresolved: {
+    style: {
+      stroke: "gray"
+	  fill: "gray"
+    }
+  }
+}
+vars: {
+  d2-legend: {
+    a: {
+      label: Specified
+    }
+    b: Unspecified {
+      label: Unspecified
+      class: unspecified
+    }
+    c: Unresolved {
+      label: Unresolved
+      class: unresolved
+    }
+    a -> b: Allowed
+    a -> b: Forbidden {
+      class: forbidden
+    }
+    a -> b: Unresolved {
+      class: unresolved
+    }
+  }
+}
+
+# specified include list:
+
+# files:
+sample.build."junk.cpp"
+sample.external."skip.cpp"
+sample.external.keep."keep.cpp"
+sample.external.keep."keep.hpp"
+sample.include."extra.hpp"
+sample.src."legacy.c"
+sample.src."main.cpp"
+sample.src.app."app.cpp"
+sample.src.app."app.hpp"
+sample.src.lib."private.hpp"
+sample.src.lib."public.hpp"
+
+# allowed:
+sample.external.keep."keep.cpp" -> sample.external.keep."keep.hpp"
+sample.src."legacy.c" -> sample.src.app."app.hpp"
+sample.src."main.cpp" -> sample.src.app."app.hpp"
+sample.src."main.cpp" -> sample.src.lib."private.hpp"
+sample.src."main.cpp" -> sample.src.lib."public.hpp"
+sample.src.app."app.cpp" -> sample.src.app."app.hpp"
+
+# forbidden:
+
+# unresolved:
+sample.build."nothing.hpp".class: unresolved
+sample.build."junk.cpp" -> sample.build."nothing.hpp": {class: unresolved}
+sample.src."extra.hpp".class: unresolved
+sample.src."main.cpp" -> sample.src."extra.hpp": {class: unresolved}
+sample.src."nonexistent.h".class: unresolved
+sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}

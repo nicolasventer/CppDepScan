@@ -1,6 +1,10 @@
 # CppDepScan sample project
 
-This folder contains a small C/C++ tree used to demonstrate every CppDepScan option. Run commands from **inside this directory** (`cd sample` from the repo root), so that scan path is `.` and paths like `src`, `include`, `build` work as shown.
+This folder contains a small C/C++ tree used to demonstrate every CppDepScan option.
+
+**Running from sample:** Run commands from **inside this directory** (`cd sample` from the repo root), so that the scan path is `.` and paths like `src`, `include`, `build` work as in the examples below.
+
+**Running from repo root:** You can also run from the repo root using paths like `sample`, `sample/src`, `sample/include`. The script `exec_sample.bat` (in the repo root) runs all demo variants and writes D2 files to `result/`; you can use it as a reference for path and option usage.
 
 ## Layout
 
@@ -111,7 +115,15 @@ Without `--std`, `<iostream>` (and other std headers) are resolved but omitted f
 ./CppDepScan -I src -I include -e build -e external -g src -g include -o grouped.d2 .
 ```
 
-Files are grouped by the given paths in the output (e.g. D2 nodes by group).
+Files are grouped by the given paths in the output (e.g. D2 nodes by group). Groups are not applied to forbidden or unresolved includes (they stay as separate edges/nodes).
+
+---
+
+### Special cases
+
+- **Exclude unresolved path:** Using `-e path/to/nonexistent.h` excludes a path that is never resolved (e.g. a missing header). Possible but not recommended; prefer resolving with `-I` and excluding the resolved path.
+- **Exclude resolved path:** Use `-I include -e include/extra.hpp` so `extra.hpp` is resolved first, then excluded from the scan. Cleaner than excluding the unresolved form.
+- **Group ignored:** When using `-A` (allowed rules), forbidden or unresolved includes are not folded into the requested groups in the D2 output.
 
 ---
 
@@ -143,4 +155,12 @@ Files are grouped by the given paths in the output (e.g. D2 nodes by group).
 ./CppDepScan --help
 ```
 
-On Windows, run from `sample` and use `CppDepScan.exe` instead of `./CppDepScan` (e.g. `CppDepScan.exe -I src -I include -e build -e external .`).
+### Generating diagrams from D2
+
+D2 files (e.g. `graph.d2`) can be rendered to PNG with the [D2](https://d2lang.com/) tool:
+
+```bash
+d2 graph.d2 graph.png
+```
+
+On Windows, run from `sample` and use `CppDepScan.exe` instead of `./CppDepScan` (e.g. `CppDepScan.exe -I src -I include -e build -e external .`). From the repo root, `exec_sample.bat` runs the sample scans and then renders all `result/*.d2` to `result/*.png`.
