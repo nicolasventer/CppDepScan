@@ -4,7 +4,7 @@
 #include <iostream>
 #include <utility>
 
-using StreamCallback = std::function<void(std::ostream&)>;
+using StreamCallback = std::function<void(std::ostream& os)>;
 
 class StreamAdapter
 {
