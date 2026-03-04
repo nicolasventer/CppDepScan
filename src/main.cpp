@@ -1,30 +1,31 @@
-#include "JsonUtility.hpp"
+#include "Config.hpp"
+#include "FileInfo.hpp"
+#include "Output.hpp"
 #include "Resolution.hpp"
-#include "types.hpp"
-#include "utility.hpp"
+#include "StreamAdapter.hpp"
+#include "utils/file.hpp"
+#include "utils/json.hpp"
+#include "utils/str.hpp"
 #include <cstddef>
 #include <cstdlib>
-#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <ostream>
 #include <string>
-#include <string_view>
 #include <utility>
-#include <vector>
 
-template <typename T> StreamAdapter toJsonOutput(const std::string& /* indent */, const T& /* value */)
+template <typename T> OStreamAdapter toJsonOutput(const std::string& /* indent */, const T& /* value */)
 {
 	static_assert(sizeof(T) == 0, "toJsonOutput not implemented for this type");
-	return StreamAdapter([](std::ostream& /* os */) {});
+	return OStreamAdapter([](std::ostream& /* os */) {});
 }
 
-template <> StreamAdapter toJsonOutput<DetectedIncludes>(const std::string& indent, const DetectedIncludes& value)
+template <> OStreamAdapter toJsonOutput<DetectedIncludes>(const std::string& indent, const DetectedIncludes& value)
 {
-	return StreamAdapter(
+	return OStreamAdapter(
 		[&](std::ostream& os)
 		{
-			using namespace json_utility;
+			using namespace utils::json;
 
 			auto members = {std::make_pair("allowedSet", &value.allowedSet),
 				{"forbiddenSet", &value.forbiddenSet},
@@ -40,12 +41,12 @@ template <> StreamAdapter toJsonOutput<DetectedIncludes>(const std::string& inde
 		});
 }
 
-template <> StreamAdapter toJsonOutput<Output>(const std::string& indent, const Output& value)
+template <> OStreamAdapter toJsonOutput<Output>(const std::string& indent, const Output& value)
 {
-	return StreamAdapter(
+	return OStreamAdapter(
 		[&](std::ostream& os)
 		{
-			using namespace json_utility;
+			using namespace utils::json;
 
 			auto members = {std::make_pair("specifiedIncludeMap", &value.specifiedIncludesMap),
 				{"unspecifiedIncludeMap", &value.unspecifiedIncludesMap}};
@@ -67,17 +68,17 @@ template <> StreamAdapter toJsonOutput<Output>(const std::string& indent, const 
 }
 
 template <typename...> struct ToD2OutputUnsupported;
-template <typename T, typename... U> StreamAdapter toD2Output(const T& /* value */, const U&... /* args */)
+template <typename T, typename... U> OStreamAdapter toD2Output(const T& /* value */, const U&... /* args */)
 {
 	static_assert(sizeof(ToD2OutputUnsupported<T, U...>) == 0, "toD2Output not implemented for these types");
-	return StreamAdapter([](std::ostream& /* os */) {});
+	return OStreamAdapter([](std::ostream& /* os */) {});
 }
 
 template <>
-StreamAdapter toD2Output<DetectedIncludes, std::string, EDetectedIncludeStatus>(
+OStreamAdapter toD2Output<DetectedIncludes, std::string, EDetectedIncludeStatus>(
 	const DetectedIncludes& value, const std::string& from, const EDetectedIncludeStatus& status)
 {
-	return StreamAdapter(
+	return OStreamAdapter(
 		[&](std::ostream& os)
 		{
 			if (status == EDetectedIncludeStatus::Allowed)
@@ -85,16 +86,14 @@ StreamAdapter toD2Output<DetectedIncludes, std::string, EDetectedIncludeStatus>(
 			else if (status == EDetectedIncludeStatus::Forbidden)
 				for (const auto& to : value.forbiddenSet) os << from << " -> " << to << ": {class: forbidden}\n";
 			else
-			{
 				for (const auto& to : value.unresolvedSet)
 					os << to << ".class: unresolved\n" << from << " -> " << to << ": {class: unresolved}\n";
-			}
 		});
 }
 
-template <> StreamAdapter toD2Output<Output>(const Output& value)
+template <> OStreamAdapter toD2Output<Output>(const Output& value)
 {
-	return StreamAdapter(
+	return OStreamAdapter(
 		[&](std::ostream& os)
 		{
 			const auto& specifiedIncludeMap = value.specifiedIncludesMap;
@@ -170,13 +169,9 @@ vars: {
 
 inline Output getOutput(const Config& config)
 {
-	using namespace utility;
-
 	Output result;
 
-	std::vector<fs::path> cppPathList;
-	for (const auto& scanPath : config.scanPathList)
-		updateCppPathList(scanPath, cppPathList, config.excludeScanPathList, config.forceIncludeScanPathList);
+	std::vector<fs::path> cppPathList = config.getCppPathList();
 
 	std::cout << "start parsing..." << "\n";
 
@@ -186,7 +181,8 @@ inline Output getOutput(const Config& config)
 
 		const FileInfo fileInfo(cppPathList[i], config);
 		const auto& f = fileInfo; // shortcut
-		const auto groupOrCppDottedPath = pathToDotted(f.groupPath != nullptr ? *f.groupPath : cppPathList[i]);
+		const auto groupOrCppDottedPath
+			= f.groupGlob != nullptr ? f.groupGlob->toDotted() : utils::file::pathToDotted(cppPathList[i]);
 
 		// ensure file/group is created even if no includes are detected
 		auto& detectedIncludes = result.getIncludes(f.isSpecified, f.isSpecified ? groupOrCppDottedPath : f.cppDottedPath);
@@ -196,7 +192,7 @@ inline Output getOutput(const Config& config)
 		while (std::getline(ifs, line))
 		{
 			std::string_view substr;
-			if (!bStartWith(line, "#include ", &substr)) continue;
+			if (!utils::str::bStartWith(line, "#include ", &substr)) continue;
 			// include detected
 
 			auto startPos = substr.find_first_of("\"<");
@@ -262,7 +258,7 @@ int main(int argc, char** argv)
 				std::cerr << "Failed to open output file: " << outputPath << "\n";
 				continue;
 			}
-			if (utility::bEndWith(outputPath.string(), ".json")) ofs << toJsonOutput("", output);
+			if (utils::str::bEndWith(outputPath.string(), ".json")) ofs << toJsonOutput("", output);
 			else
 				ofs << toD2Output(output);
 			std::cout << "Generated: " << outputPath << "\n";

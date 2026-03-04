@@ -1,7 +1,8 @@
 #pragma once
 
-#include "types.hpp"
-#include "utility.hpp"
+#include "Config.hpp"
+#include "FileInfo.hpp"
+#include "Output.hpp"
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -28,32 +29,38 @@ private:
 		Output& result,
 		DetectedIncludes& detectedIncludes)
 	{
-		using namespace utility;
 		const auto& f = fileInfo; // shortcut
 
-		const bool isForceIncluded = getPatternThatIncludesPath(resolvedIncludePath, config.forceIncludeScanPathList) != nullptr;
+		auto resolvedIncludeSegmentList = utils::file::toSegmentList(resolvedIncludePath);
+
+		const bool isForceIncluded
+			= utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.forceIncludeScanGlobList) != nullptr;
 		const bool isExcluded
-			= !isForceIncluded && getPatternThatIncludesPath(resolvedIncludePath, config.excludeScanPathList) != nullptr;
+			= !isForceIncluded
+			  && utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.excludeScanGlobList) != nullptr;
 		if (isExcluded) return;
 		// resolution not excluded
 
 		const bool isAllowed
-			= f.allowedToList == nullptr || getPatternThatIncludesPath(resolvedIncludePath, *f.allowedToList) != nullptr;
+			= f.allowedToList == nullptr
+			  || utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, *f.allowedToList) != nullptr;
 		if (isAllowed)
 		{
 			// resolution allowed
-			const auto* includeGroupPath = getPatternThatIncludesPath(resolvedIncludePath, config.groupPathList);
-			if (includeGroupPath == f.groupPath && includeGroupPath != nullptr) return;
+			const auto* includeGroupGlob
+				= utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.groupGlobList);
+			if (includeGroupGlob == f.groupGlob && includeGroupGlob != nullptr) return;
 			// resolution group different from file group
 
-			detectedIncludes.allowedSet.insert(
-				pathToDotted(includeGroupPath != nullptr ? *includeGroupPath : resolvedIncludePath));
+			auto dottedPath
+				= includeGroupGlob != nullptr ? includeGroupGlob->toDotted() : utils::file::pathToDotted(resolvedIncludePath);
+			detectedIncludes.allowedSet.insert(dottedPath);
 		}
 		else
 		{
 			// resolution forbidden
 			auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
-			cppInclude.forbiddenSet.insert(pathToDotted(resolvedIncludePath));
+			cppInclude.forbiddenSet.insert(utils::file::pathToDotted(resolvedIncludePath));
 		}
 	}
 
@@ -63,7 +70,6 @@ private:
 		Output& result,
 		DetectedIncludes& detectedIncludes)
 	{
-		using namespace utility;
 		const auto& f = fileInfo; // shortcut
 
 		const fs::path currentFolderIncludePath = f.cppPath->parent_path() / fs::path(detectedIncludeStr);
@@ -93,9 +99,7 @@ private:
 		Output& result,
 		DetectedIncludes& detectedIncludes)
 	{
-		using namespace utility;
-
-		const fs::path detectedIncludePath = fs::path(detectedIncludeStr);
+		const fs::path detectedIncludePath(detectedIncludeStr);
 
 		const auto* resolutionIncludePath = getResolutionIncludePath(detectedIncludePath, config.resolutionIncludePathList);
 		if (resolutionIncludePath == nullptr) return false;
@@ -133,7 +137,6 @@ private:
 		Output& result,
 		DetectedIncludes& /* detectedIncludes */)
 	{
-		using namespace utility;
 		const auto& f = fileInfo; // shortcut
 
 		auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
@@ -141,14 +144,17 @@ private:
 		// current folder used for better display
 		const fs::path currentFolderIncludePath = f.cppPath->parent_path() / fs::path(detectedIncludeStr);
 
+		auto currentFolderSegmentList = utils::file::toSegmentList(currentFolderIncludePath);
+
 		const bool isForceIncluded
-			= getPatternThatIncludesPath(currentFolderIncludePath, config.forceIncludeScanPathList) != nullptr;
+			= utils::glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.forceIncludeScanGlobList) != nullptr;
 		const bool isExcluded
-			= !isForceIncluded && getPatternThatIncludesPath(currentFolderIncludePath, config.excludeScanPathList) != nullptr;
+			= !isForceIncluded
+			  && utils::glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.excludeScanGlobList) != nullptr;
 		if (isExcluded) return false;
 		// unresolved not excluded
 
-		cppInclude.unresolvedSet.insert(pathToDotted(currentFolderIncludePath));
+		cppInclude.unresolvedSet.insert(utils::file::pathToDotted(currentFolderIncludePath));
 		return false;
 	}
 };

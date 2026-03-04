@@ -1,0 +1,61 @@
+classes: {
+  forbidden: {
+    style: {
+      stroke: "red"
+    }
+  }
+  unspecified: {
+    style: {
+      stroke: "orange"
+	  fill: "orange"
+    }
+  }
+  unresolved: {
+    style: {
+      stroke: "gray"
+	  fill: "gray"
+    }
+  }
+}
+vars: {
+  d2-legend: {
+    a: {
+      label: Specified
+    }
+    b: Unspecified {
+      label: Unspecified
+      class: unspecified
+    }
+    c: Unresolved {
+      label: Unresolved
+      class: unresolved
+    }
+    a -> b: Allowed
+    a -> b: Forbidden {
+      class: forbidden
+    }
+    a -> b: Unresolved {
+      class: unresolved
+    }
+  }
+}
+
+# specified include list:
+
+# files:
+sample."**"."*.hpp"
+sample.external."skip.cpp"
+sample.external.keep."keep.cpp"
+sample.src."legacy.c"
+sample.src."main.cpp"
+sample.src.app."app.cpp"
+
+# allowed:
+sample.external.keep."keep.cpp" -> sample."**"."*.hpp"
+sample.src."legacy.c" -> sample."**"."*.hpp"
+sample.src."main.cpp" -> sample."**"."*.hpp"
+sample.src.app."app.cpp" -> sample."**"."*.hpp"
+
+# forbidden:
+
+# unresolved:

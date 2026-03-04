@@ -4,19 +4,36 @@
 #include <iostream>
 #include <utility>
 
-using StreamCallback = std::function<void(std::ostream& os)>;
+using OStreamCallback = std::function<void(std::ostream& os)>;
 
-class StreamAdapter
+class OStreamAdapter
 {
 public:
-	explicit StreamAdapter(StreamCallback&& callback) : callback(std::move(callback)) {}
+	explicit OStreamAdapter(OStreamCallback&& callback) : callback(std::move(callback)) {}
 
-	friend std::ostream& operator<<(std::ostream& os, const StreamAdapter& adapter)
+	friend std::ostream& operator<<(std::ostream& os, const OStreamAdapter& adapter)
 	{
 		adapter.callback(os);
 		return os;
 	}
 
 private:
-	StreamCallback callback;
+	OStreamCallback callback;
+};
+
+using IStreamCallback = std::function<void(std::istream& is)>;
+
+class IStreamAdapter
+{
+public:
+	explicit IStreamAdapter(IStreamCallback&& callback) : callback(std::move(callback)) {}
+
+	friend std::istream& operator>>(std::istream& is, const IStreamAdapter& adapter)
+	{
+		adapter.callback(is);
+		return is;
+	}
+
+private:
+	IStreamCallback callback;
 };

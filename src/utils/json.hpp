@@ -1,12 +1,12 @@
 #pragma once
 
-#include "StreamAdapter.hpp"
+#include "../StreamAdapter.hpp"
 #include <functional>
 #include <iomanip>
 #include <iostream>
 #include <string>
 
-namespace json_utility
+namespace utils::json
 {
 	inline auto toJsonString(const std::string& s) { return std::quoted(s); }
 
@@ -15,7 +15,7 @@ namespace json_utility
 		const T& range,
 		const std::function<void(const typename T::value_type&, const std::string& indent)>& func)
 	{
-		return StreamAdapter(
+		return OStreamAdapter(
 			[&](std::ostream& os)
 			{
 				os << '{';
@@ -40,7 +40,7 @@ namespace json_utility
 
 	template <typename T> auto toJsonArray(const T& range, const std::function<void(const typename T::value_type&)>& func)
 	{
-		return StreamAdapter(
+		return OStreamAdapter(
 			[&](std::ostream& os)
 			{
 				os << "[";
@@ -60,4 +60,4 @@ namespace json_utility
 				os << "]";
 			});
 	}
-} // namespace json_utility
+} // namespace utils::json
