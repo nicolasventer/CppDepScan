@@ -8,13 +8,17 @@
 #include "utils/str.hpp"
 #include <cstddef>
 #include <cstdlib>
+#include <exception>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <ostream>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
-template <typename T> OStreamAdapter toJsonOutput(const std::string& /* indent */, const T& /* value */)
+template <typename T> static OStreamAdapter toJsonOutput(const std::string& /* indent */, const T& /* value */)
 {
 	static_assert(sizeof(T) == 0, "toJsonOutput not implemented for this type");
 	return OStreamAdapter([](std::ostream& /* os */) {});
@@ -68,7 +72,7 @@ template <> OStreamAdapter toJsonOutput<Output>(const std::string& indent, const
 }
 
 template <typename...> struct ToD2OutputUnsupported;
-template <typename T, typename... U> OStreamAdapter toD2Output(const T& /* value */, const U&... /* args */)
+template <typename T, typename... U> static OStreamAdapter toD2Output(const T& /* value */, const U&... /* args */)
 {
 	static_assert(sizeof(ToD2OutputUnsupported<T, U...>) == 0, "toD2Output not implemented for these types");
 	return OStreamAdapter([](std::ostream& /* os */) {});
@@ -167,7 +171,7 @@ vars: {
 		});
 }
 
-inline Output getOutput(const Config& config)
+static Output getOutput(const Config& config)
 {
 	Output result;
 
@@ -193,6 +197,7 @@ inline Output getOutput(const Config& config)
 		{
 			std::string_view substr;
 			if (!utils::str::bStartWith(line, "#include ", &substr)) continue;
+
 			// include detected
 
 			auto startPos = substr.find_first_of("\"<");
@@ -230,7 +235,7 @@ static void usage(const char* prog)
 			  << "  -h, --help                  Print this help\n";
 }
 
-int main(int argc, char** argv)
+int main(int argc, char* argv[])
 {
 	Config cfg;
 	if (!cfg.parseArgs(argc, argv))

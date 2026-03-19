@@ -34,15 +34,16 @@ namespace utils::compiler
 		FILE* pipe = popen(cmd.c_str(), "r"); // NOLINT -- need shell for 2>&1
 		fs::remove(tmp);
 
-		if (!pipe)
+		if (pipe == nullptr)
 		{
 			std::cerr << "Failed to run: " << compiler << "\n";
 			return pathList;
 		}
 
 		std::ostringstream raw;
-		std::array<char, 256> buf{};
-		while (fgets(buf.data(), static_cast<int>(buf.size()), pipe)) raw << buf.data();
+		static constexpr size_t BUF_SIZE = 256;
+		std::array<char, BUF_SIZE> buf{};
+		while (fgets(buf.data(), static_cast<int>(buf.size()), pipe) != nullptr) raw << buf.data();
 		pclose(pipe);
 
 		const std::string out = raw.str();

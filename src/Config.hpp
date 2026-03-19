@@ -30,7 +30,7 @@ struct Config
 	// automatically filled
 	std::vector<std::string> stdResolutionIncludePathList;
 
-	const std::vector<Glob>* getAllowedToList(const fs::path& cppPath) const
+	[[nodiscard]] const std::vector<Glob>* getAllowedToList(const fs::path& cppPath) const
 	{
 		const auto segmentList = utils::file::toSegmentList(cppPath);
 		for (const auto& [from, index] : allowedIncludeIndexMap)
@@ -38,7 +38,7 @@ struct Config
 		return nullptr;
 	}
 
-	bool parseArgs(int argc, char** argv)
+	bool parseArgs(int argc, char* argv[])
 	{
 		std::vector<std::string> argList(argc);
 		for (int i = 0; i < argc; ++i) argList[i] = utils::str::removeQuotes(argv[i]);
@@ -107,7 +107,7 @@ struct Config
 		return true;
 	}
 
-	std::vector<fs::path> getCppPathList() const
+	[[nodiscard]] std::vector<fs::path> getCppPathList() const
 	{
 		std::vector<fs::path> cppPathList;
 		for (const auto& scanPath : scanPathList)

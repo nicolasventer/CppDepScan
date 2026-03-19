@@ -16,7 +16,7 @@ public:
 		size_t lastPos = 0;
 		for (size_t i = 0; i < pattern.size(); ++i)
 		{
-			bool isLast = i == pattern.size() - 1;
+			const bool isLast = i == pattern.size() - 1;
 			if (pattern[i] == '/' || pattern[i] == '\\' || isLast)
 			{
 				auto& segmentList = bSuffix ? suffixSegmentList : prefixSegmentList;
@@ -43,7 +43,7 @@ public:
 		bSuffix |= pattern.back() != '*'; // make the match not exact if the last character is not '*'
 	}
 
-	bool bMatch(const std::vector<std::string>& segmentList) const
+	[[nodiscard]] bool bMatch(const std::vector<std::string>& segmentList) const
 	{
 		if (prefixSegmentList.size() + suffixSegmentList.size() > segmentList.size()) return false;
 		if (!bSuffix && prefixSegmentList.size() != segmentList.size()) return false;
@@ -54,7 +54,7 @@ public:
 		return true;
 	}
 
-	std::string toDotted() const
+	[[nodiscard]] std::string toDotted() const
 	{
 		std::ostringstream oss;
 
@@ -66,7 +66,9 @@ public:
 
 		std::string result = oss.str();
 		result.pop_back();
-		if (utils::str::bEndWith(result, ".\"**\"")) result = result.substr(0, result.size() - 5);
+		static constexpr std::string_view DOUBLE_STAR_SUFFIX = ".\"**\"";
+		if (utils::str::bEndWith(result, DOUBLE_STAR_SUFFIX))
+			result = result.substr(0, result.size() - DOUBLE_STAR_SUFFIX.size() - 1);
 		return result;
 	}
 
@@ -103,18 +105,18 @@ private:
 			suffix = segment.substr(lastPos);
 		}
 
-		bool bMatch(const std::string& segment) const
+		[[nodiscard]] bool bMatch(const std::string& segment) const
 		{
 			std::string_view segmentWithoutPrefix;
 			if (!utils::str::bStartWith(segment, prefix, &segmentWithoutPrefix)) return false;
 			return utils::str::bEndWith(segmentWithoutPrefix, suffix);
 		}
 
-		bool isDot() const { return suffix == "."; }
+		[[nodiscard]] bool isDot() const { return suffix == "."; }
 
-		std::string toDotted() const
+		[[nodiscard]] std::string toDotted() const
 		{
-			bool hasDot = prefix.find('.') != std::string::npos || suffix.find('.') != std::string::npos;
+			const bool hasDot = prefix.find('.') != std::string::npos || suffix.find('.') != std::string::npos;
 			std::ostringstream oss;
 			if (hasDot || bSuffix) oss << '"';
 			oss << prefix << (bSuffix ? "*" : "") << suffix;

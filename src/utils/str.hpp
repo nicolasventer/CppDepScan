@@ -9,7 +9,7 @@ namespace utils::str
 	{
 		if (str.size() < prefix.size()) return false;
 		const bool result = str.substr(0, prefix.size()) == prefix;
-		if (result && strWithoutPrefix) *strWithoutPrefix = str.substr(prefix.size());
+		if (result && (strWithoutPrefix != nullptr)) *strWithoutPrefix = str.substr(prefix.size());
 		return result;
 	}
 
@@ -18,7 +18,7 @@ namespace utils::str
 		if (str.size() < suffix.size()) return false;
 		auto offset = str.size() - suffix.size();
 		const bool result = str.substr(offset) == suffix;
-		if (result && strWithoutSuffix) *strWithoutSuffix = str.substr(0, offset);
+		if (result && (strWithoutSuffix != nullptr)) *strWithoutSuffix = str.substr(0, offset);
 		return result;
 	}
 

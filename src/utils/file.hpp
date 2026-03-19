@@ -18,8 +18,8 @@ namespace utils::file
 
 	inline bool isCppFile(const fs::path& path)
 	{
-		static auto cppExtensionList = {".h", ".hpp", ".hxx", ".hh", ".h++", ".c", ".cc", ".cpp", ".cxx"};
-		for (const auto* cppExtension : cppExtensionList)
+		static constexpr auto CPP_EXTENSION_LIST = {".h", ".hpp", ".hxx", ".hh", ".c", ".cc", ".cpp", ".cxx"};
+		for (const auto* cppExtension : CPP_EXTENSION_LIST)
 			if (path.extension() == cppExtension) return true;
 		return false;
 	}
@@ -37,7 +37,7 @@ namespace utils::file
 				oss << segmentStr << ".";
 		}
 
-		std::string result = oss.str();
+		const std::string result = oss.str();
 		return result.substr(0, result.size() - 1);
 	}
 
