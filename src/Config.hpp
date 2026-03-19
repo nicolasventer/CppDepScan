@@ -56,8 +56,7 @@ struct Config
 				const std::string& path = argList[++i];
 				// if (path.back() == '/') path.pop_back(); // trailing slash must be preserved
 				if (path.front() == '!') forceIncludeScanGlobList.emplace_back(path.substr(1));
-				else
-					excludeScanGlobList.emplace_back(path);
+				else excludeScanGlobList.emplace_back(path);
 			}
 			else if ((a == "-A" || a == "--allowed") && i + 2 < argc)
 			{
@@ -73,12 +72,9 @@ struct Config
 				}
 				allowedIncludeGlobListList[allowedIncludeIndexMap[fromGlob]].emplace_back(toStr);
 			}
-			else if (a == "-o" && i + 1 < argc)
-				outputPathList.emplace_back(argList[++i]);
-			else if (a == "--std")
-				bKeepStdInOutput = true;
-			else if (a == "--json")
-				bUseJsonForStdOutput = true;
+			else if (a == "-o" && i + 1 < argc) outputPathList.emplace_back(argList[++i]);
+			else if (a == "--std") bKeepStdInOutput = true;
+			else if (a == "--json") bUseJsonForStdOutput = true;
 			else if ((a == "-g" || a == "--group") && i + 1 < argc)
 			{
 				const std::string& path = argList[++i];
@@ -95,8 +91,7 @@ struct Config
 				std::cerr << "Error with option: " << a << "\n";
 				return false;
 			}
-			else
-				scanPathList.emplace_back(a);
+			else scanPathList.emplace_back(a);
 		}
 		if (scanPathList.empty())
 		{
@@ -129,7 +124,7 @@ private:
 				= utils::glob::getGlobThatMatchesSegmentList(scanPathSegmentList, forceIncludeScanGlobList) != nullptr;
 			const bool isExcluded
 				= !isForceIncluded
-				  && utils::glob::getGlobThatMatchesSegmentList(scanPathSegmentList, excludeScanGlobList) != nullptr;
+			   && utils::glob::getGlobThatMatchesSegmentList(scanPathSegmentList, excludeScanGlobList) != nullptr;
 			if (isExcluded) return;
 			cppPathList.push_back(scanPath);
 		}

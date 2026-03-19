@@ -17,9 +17,9 @@ public:
 		DetectedIncludes& detectedIncludes)
 	{
 		return handleCurrentFolderResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
-			   || handleIncludePathListResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
-			   || handleStdResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
-			   || handleUnresolved(detectedIncludeStr, config, fileInfo, result, detectedIncludes);
+			|| handleIncludePathListResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
+			|| handleStdResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
+			|| handleUnresolved(detectedIncludeStr, config, fileInfo, result, detectedIncludes);
 	}
 
 private:
@@ -37,13 +37,13 @@ private:
 			= utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.forceIncludeScanGlobList) != nullptr;
 		const bool isExcluded
 			= !isForceIncluded
-			  && utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.excludeScanGlobList) != nullptr;
+		   && utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.excludeScanGlobList) != nullptr;
 		if (isExcluded) return;
 		// resolution not excluded
 
 		const bool isAllowed
 			= f.allowedToList == nullptr
-			  || utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, *f.allowedToList) != nullptr;
+		   || utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, *f.allowedToList) != nullptr;
 		if (isAllowed)
 		{
 			// resolution allowed
@@ -150,7 +150,7 @@ private:
 			= utils::glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.forceIncludeScanGlobList) != nullptr;
 		const bool isExcluded
 			= !isForceIncluded
-			  && utils::glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.excludeScanGlobList) != nullptr;
+		   && utils::glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.excludeScanGlobList) != nullptr;
 		if (isExcluded) return false;
 		// unresolved not excluded
 

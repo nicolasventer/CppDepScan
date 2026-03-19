@@ -249,8 +249,7 @@ int main(int argc, char* argv[])
 	{
 		std::cout << "\n";
 		if (cfg.bUseJsonForStdOutput) std::cout << toJsonOutput("", output);
-		else
-			std::cout << toD2Output(output);
+		else std::cout << toD2Output(output);
 	}
 	else
 	{
@@ -264,8 +263,7 @@ int main(int argc, char* argv[])
 				continue;
 			}
 			if (utils::str::bEndWith(outputPath.string(), ".json")) ofs << toJsonOutput("", output);
-			else
-				ofs << toD2Output(output);
+			else ofs << toD2Output(output);
 			std::cout << "Generated: " << outputPath << "\n";
 		}
 	}

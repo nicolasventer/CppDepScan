@@ -33,8 +33,7 @@ namespace utils::file
 			if (segment == ".") continue;
 			const auto& segmentStr = segment.string();
 			if (segmentStr.find('.') != std::string::npos) oss << '"' << segmentStr << '"' << ".";
-			else
-				oss << segmentStr << ".";
+			else oss << segmentStr << ".";
 		}
 
 		const std::string result = oss.str();
