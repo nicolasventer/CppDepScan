@@ -1,10 +1,9 @@
 CppDepScan sample -o result/basic.d2
 CppDepScan sample -e sample/build -e sample/external -o result/exclude_build_external.d2
 CppDepScan sample -e sample/build -e sample/external -e !sample/external/keep -o result/exclude_build_external_keep.d2
-@REM TODO glob scan
-@REM CppDepScan 'src/*' -o result/glob_scan.d2
 
 CppDepScan sample/src -I sample/include -o result/include.d2
+CppDepScan 'sample/src/*.cpp' -I sample/include -o result/include_glob_scan.d2
 
 CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app -o result/allowed.d2
 CppDepScan.exe sample/src -A 'sample/src/*' sample/src/app -I sample/include -o result/glob_allowed.d2

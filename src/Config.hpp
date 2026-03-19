@@ -15,7 +15,7 @@ namespace fs = std::filesystem;
 
 struct Config
 {
-	std::vector<fs::path> scanPathList;
+	std::vector<Glob> scanGlobList;
 	std::vector<Glob> excludeScanGlobList;
 	std::vector<Glob> forceIncludeScanGlobList;
 	std::vector<fs::path> resolutionIncludePathList;
@@ -91,9 +91,9 @@ struct Config
 				std::cerr << "Error with option: " << a << "\n";
 				return false;
 			}
-			else scanPathList.emplace_back(a);
+			else scanGlobList.emplace_back(a);
 		}
-		if (scanPathList.empty())
+		if (scanGlobList.empty())
 		{
 			std::cerr << "Error: no scan paths provided\n";
 			return false;
@@ -105,21 +105,25 @@ struct Config
 	[[nodiscard]] std::vector<fs::path> getCppPathList() const
 	{
 		std::vector<fs::path> cppPathList;
-		for (const auto& scanPath : scanPathList)
+		for (const auto& scanGlob : scanGlobList)
 		{
-			auto scanPathSegmentList = utils::file::toSegmentList(scanPath);
-			updateCppPathList(scanPath, scanPathSegmentList, cppPathList);
+			auto rootPath = scanGlob.toRootPath();
+			auto scanPathSegmentList = utils::file::toSegmentList(rootPath);
+			updateCppPathList(scanGlob, rootPath, scanPathSegmentList, cppPathList);
 		}
 		return cppPathList;
 	}
 
 private:
-	void updateCppPathList(
-		const fs::path& scanPath, std::vector<std::string>& scanPathSegmentList, std::vector<fs::path>& cppPathList) const
+	void updateCppPathList(const Glob& scanGlob,
+		const fs::path& scanPath,
+		std::vector<std::string>& scanPathSegmentList,
+		std::vector<fs::path>& cppPathList) const
 	{
 		if (fs::is_regular_file(scanPath))
 		{
 			if (!utils::file::isCppFile(scanPath)) return;
+			if (!scanGlob.bMatch(scanPathSegmentList)) return;
 			const bool isForceIncluded
 				= utils::glob::getGlobThatMatchesSegmentList(scanPathSegmentList, forceIncludeScanGlobList) != nullptr;
 			const bool isExcluded
@@ -133,7 +137,7 @@ private:
 			for (const auto& file : fs::directory_iterator(scanPath))
 			{
 				scanPathSegmentList.emplace_back(file.path().filename().string());
-				updateCppPathList(file.path(), scanPathSegmentList, cppPathList);
+				updateCppPathList(scanGlob, file.path(), scanPathSegmentList, cppPathList);
 				scanPathSegmentList.pop_back();
 			}
 		}

@@ -6,7 +6,8 @@ C++ include detection: scan paths, resolve `#include` directives, and output the
 
 ## Features
 
-- Scan C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`, `.h++`)
+- Scan C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`)
+- Glob-aware path matching for scan/exclude/allowed/group rules (`*`, `**`)
 - Resolve `#include "..."` and `#include <...>` with configurable include paths
 - Exclude paths from scanning; force-include with `-e !<path>`
 - Declare allowed includes (`-A`) for dependency rules
@@ -91,7 +92,7 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 
 </details>
 
-<details>
+<details open>
 <summary>Rendered image</summary>
 
 ![basic](result/basic.png)
@@ -149,40 +150,6 @@ CppDepScan sample -e sample/build -e sample/external -e !sample/external/keep -o
 ```
 
 <details>
-<summary>D2 output</summary>
-
-```d2
-# specified include list:
-# files:
-sample.external.keep."keep.cpp"
-sample.external.keep."keep.hpp"
-sample.include."extra.hpp"
-sample.src."legacy.c"
-sample.src."main.cpp"
-sample.src.app."app.cpp"
-sample.src.app."app.hpp"
-sample.src.lib."private.hpp"
-sample.src.lib."public.hpp"
-
-# allowed:
-sample.external.keep."keep.cpp" -> sample.external.keep."keep.hpp"
-sample.src."legacy.c" -> sample.src.app."app.hpp"
-sample.src."main.cpp" -> sample.src.app."app.hpp"
-sample.src."main.cpp" -> sample.src.lib."private.hpp"
-sample.src."main.cpp" -> sample.src.lib."public.hpp"
-sample.src.app."app.cpp" -> sample.src.app."app.hpp"
-
-# forbidden:
-# unresolved:
-sample.src."extra.hpp".class: unresolved
-sample.src."main.cpp" -> sample.src."extra.hpp": {class: unresolved}
-sample.src."nonexistent.h".class: unresolved
-sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
-```
-
-</details>
-
-<details>
 <summary>Rendered image</summary>
 
 ![exclude with keep](result/exclude_build_external_keep.png)
@@ -196,81 +163,30 @@ CppDepScan sample/src -I sample/include -o result/include.d2
 ```
 
 <details>
-<summary>D2 output</summary>
-
-```d2
-# specified include list:
-# files:
-sample.src."legacy.c"
-sample.src."main.cpp"
-sample.src.app."app.cpp"
-sample.src.app."app.hpp"
-sample.src.lib."private.hpp"
-sample.src.lib."public.hpp"
-
-# allowed:
-sample.src."legacy.c" -> sample.src.app."app.hpp"
-sample.src."main.cpp" -> sample.include."extra.hpp"
-sample.src."main.cpp" -> sample.src.app."app.hpp"
-sample.src."main.cpp" -> sample.src.lib."private.hpp"
-sample.src."main.cpp" -> sample.src.lib."public.hpp"
-sample.src.app."app.cpp" -> sample.src.app."app.hpp"
-
-# forbidden:
-# unresolved:
-sample.src."nonexistent.h".class: unresolved
-sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
-```
-
-</details>
-
-<details>
 <summary>Rendered image</summary>
 
 ![include paths](result/include.png)
 
 </details>
 
-### Allowed includes (`-A`, `--allowed`)
+### Scan path with glob (`*`)
 
 ```bash
-CppDepScan sample/src -I sample/include -A sample/src/main sample/src/app -A sample/src/main sample/include -A sample/src/legacy.c sample/src/app -o result/allowed.d2
+CppDepScan 'sample/src/*' -I sample/include -o result/include_glob_scan.d2
 ```
 
 <details>
-<summary>D2 output</summary>
+<summary>Rendered image</summary>
 
-```d2
-# specified include list:
-# files:
-sample.src."legacy.c"
-sample.src."main.cpp"
-
-# allowed:
-sample.src."legacy.c" -> sample.src.app."app.hpp"
-sample.src."main.cpp" -> sample.include."extra.hpp"
-sample.src."main.cpp" -> sample.src.app."app.hpp"
-
-# forbidden:
-sample.src."main.cpp" -> sample.src.lib."private.hpp": {class: forbidden}
-sample.src."main.cpp" -> sample.src.lib."public.hpp": {class: forbidden}
-
-# unresolved:
-sample.src."nonexistent.h".class: unresolved
-sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
-
-# unspecified include list:
-# files:
-sample.src.app."app.cpp".class: unspecified
-sample.src.app."app.hpp".class: unspecified
-sample.src.lib."private.hpp".class: unspecified
-sample.src.lib."public.hpp".class: unspecified
-
-# resolved:
-sample.src.app."app.cpp" -> sample.src.app."app.hpp"
-```
+![include glob scan](result/include_glob_scan.png)
 
 </details>
+
+### Allowed includes (`-A`, `--allowed`)
+
+```bash
+CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app -o result/allowed.d2
+```
 
 <details>
 <summary>Rendered image</summary>
@@ -359,32 +275,32 @@ CppDepScan sample/src -I sample/include -o result/include.json
 
 ```json
 {
-  "specifiedIncludeMap": {
-    "sample.src.\"legacy.c\"": {
-      "allowedSet": ["sample.src.app.\"app.hpp\""],
-      "forbiddenSet": [],
-      "unresolvedSet": []
-    },
-    "sample.src.\"main.cpp\"": {
-      "allowedSet": [
-        "sample.include.\"extra.hpp\"",
-        "sample.src.app.\"app.hpp\"",
-        "sample.src.lib.\"private.hpp\"",
-        "sample.src.lib.\"public.hpp\""
-      ],
-      "forbiddenSet": [],
-      "unresolvedSet": ["sample.src.\"nonexistent.h\""]
-    },
-    "sample.src.app.\"app.cpp\"": {
-      "allowedSet": ["sample.src.app.\"app.hpp\""],
-      "forbiddenSet": [],
-      "unresolvedSet": []
-    },
-    "sample.src.app.\"app.hpp\"": {"allowedSet": [], "forbiddenSet": [], "unresolvedSet": []},
-    "sample.src.lib.\"private.hpp\"": {"allowedSet": [], "forbiddenSet": [], "unresolvedSet": []},
-    "sample.src.lib.\"public.hpp\"": {"allowedSet": [], "forbiddenSet": [], "unresolvedSet": []}
-  },
-  "unspecifiedIncludeMap": {}
+	"specifiedIncludeMap": {
+		"sample.src.\"legacy.c\"": {
+			"allowedSet": ["sample.src.app.\"app.hpp\""],
+			"forbiddenSet": [],
+			"unresolvedSet": []
+		},
+		"sample.src.\"main.cpp\"": {
+			"allowedSet": [
+				"sample.include.\"extra.hpp\"",
+				"sample.src.app.\"app.hpp\"",
+				"sample.src.lib.\"private.hpp\"",
+				"sample.src.lib.\"public.hpp\""
+			],
+			"forbiddenSet": [],
+			"unresolvedSet": ["sample.src.\"nonexistent.h\""]
+		},
+		"sample.src.app.\"app.cpp\"": {
+			"allowedSet": ["sample.src.app.\"app.hpp\""],
+			"forbiddenSet": [],
+			"unresolvedSet": []
+		},
+		"sample.src.app.\"app.hpp\"": { "allowedSet": [], "forbiddenSet": [], "unresolvedSet": [] },
+		"sample.src.lib.\"private.hpp\"": { "allowedSet": [], "forbiddenSet": [], "unresolvedSet": [] },
+		"sample.src.lib.\"public.hpp\"": { "allowedSet": [], "forbiddenSet": [], "unresolvedSet": [] }
+	},
+	"unspecifiedIncludeMap": {}
 }
 ```
 
@@ -500,32 +416,6 @@ CppDepScan sample/src -g sample/src -I sample/include -A sample/src/main.cpp sam
 ```
 
 <details>
-<summary>D2 output</summary>
-
-```d2
-# specified include list:
-# files:
-sample.src
-sample.src."main.cpp"
-
-# allowed:
-# forbidden:
-sample.src."main.cpp" -> sample.include."extra.hpp": {class: forbidden}
-
-# unresolved:
-sample.src."nonexistent.h".class: unresolved
-sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
-
-# unspecified include list:
-# files:
-sample.src."legacy.c".class: unspecified
-
-# resolved:
-```
-
-</details>
-
-<details>
 <summary>Rendered image</summary>
 
 ![ignored group](result/ignored_group.png)
@@ -540,41 +430,43 @@ CppDepScan [options] <scan_path> [scan_path ...]
 
 **Scan paths**
 
-| Option        | Description                                                                 |
-| ------------- | --------------------------------------------------------------------------- |
-| `-e <path>`   | Exclude path for scanning (folder or file); may be repeated.                |
-| `-e !<path>`  | Keep path for scanning even if it lies under an exclude.                    |
+| Option       | Description                                                       |
+| ------------ | ----------------------------------------------------------------- |
+| `-e <path>`  | Exclude path/glob for scanning (folder or file); may be repeated. |
+| `-e !<path>` | Keep path/glob for scanning even if it lies under an exclude.     |
 
-- **Scan paths** (positional): files or directories to scan for C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`, `.h++`).
-- **Exclude** (`-e`): paths under an excluded folder/file are not scanned. Use `-e !<path>` to force-include a path that would otherwise be excluded.
+- **Scan paths** (positional): files/directories or glob patterns to scan for C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`).
+- **Exclude** (`-e`): folder/file path or glob pattern to skip during scan. Use `-e !<path>` to force-include a path that would otherwise be excluded.
 
 **Resolution**
 
-| Option                        | Description                                                                 |
-| ----------------------------- | --------------------------------------------------------------------------- |
-| `-I <path>`                   | Add include path for resolution (folder or file); may be repeated.          |
-| `-A`, `--allowed <from> <to>` | \<from\> may include \<to\>; may be repeated.                               |
+| Option                        | Description                                                                   |
+| ----------------------------- | ----------------------------------------------------------------------------- |
+| `-I <path>`                   | Add include path for resolution (folder or file); may be repeated.            |
+| `-A`, `--allowed <from> <to>` | \<from\> may include \<to\>; both are glob patterns matched; may be repeated. |
 
 - **Include paths** (`-I`): used to resolve `#include "..."` and `#include <...>`. The current file's directory is always tried first for `"..."`.
 - **Allowed** (`-A`): declare that \<from\> may include \<to\>; used for dependency rules and reflected in D2/JSON output.
 
 **Output**
 
-| Option                 | Description                                                                 |
-| ---------------------- | --------------------------------------------------------------------------- |
-| `-o <file>`            | Write output to file; may be repeated. `.json` → JSON, otherwise D2.        |
-| `--json`               | Use JSON for stdout (default when no `-o`: D2).                             |
-| `--std`                | Include standard library headers in output (default: off).                  |
-| `-g`, `--group <path>` | Gather files by group; path may be repeated.                                |
+| Option                 | Description                                                          |
+| ---------------------- | -------------------------------------------------------------------- |
+| `-o <file>`            | Write output to file; may be repeated. `.json` → JSON, otherwise D2. |
+| `--json`               | Use JSON for stdout (default when no `-o`: D2).                      |
+| `--std`                | Include standard library headers in output (default: off).           |
+| `-g`, `--group <path>` | Gather files by group; path may be repeated.                         |
 
 - **JSON**: `specifiedIncludeMap` — object mapping each source file (dotted path) to an object with `allowedSet`, `forbiddenSet`, `unresolvedSet`; `unspecifiedIncludeMap` — same shape (e.g. headers only).
 - **D2**: **# specified include list** / **# unspecified include list** — for each file, **# allowed:** edges `from -> to`, **# forbidden:** edges, **# unresolved:** commented-out edges for unresolved includes.
+- **Glob syntax**: `*` matches within one path segment, `**` matches across segments.
+  - **Note**: On Windows, **always single-quote glob patterns** in the command line (e.g., `'sample/src/*'`, `'sample/**/*.hpp'`) to prevent premature expansion or parsing errors.
 
 **Other**
 
-| Option         | Description  |
-| -------------- | ------------ |
-| `-h`, `--help` | Print help.  |
+| Option         | Description |
+| -------------- | ----------- |
+| `-h`, `--help` | Print help. |
 
 ## Build
 

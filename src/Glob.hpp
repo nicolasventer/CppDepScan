@@ -1,6 +1,7 @@
 #pragma once
 
 #include "utils/str.hpp"
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 #include <stdexcept>
@@ -68,7 +69,19 @@ public:
 		result.pop_back();
 		static constexpr std::string_view DOUBLE_STAR_SUFFIX = ".\"**\"";
 		if (utils::str::bEndWith(result, DOUBLE_STAR_SUFFIX))
-			result = result.substr(0, result.size() - DOUBLE_STAR_SUFFIX.size() - 1);
+			result = result.substr(0, result.size() - DOUBLE_STAR_SUFFIX.size());
+		return result;
+	}
+
+	[[nodiscard]] std::filesystem::path toRootPath() const
+	{
+		std::filesystem::path result;
+		for (const auto& segment : prefixSegmentList)
+		{
+			if (segment.getLiteral().empty()) break;
+			result /= segment.getLiteral();
+			if (!segment.isLiteral()) break;
+		}
 		return result;
 	}
 
@@ -123,6 +136,10 @@ private:
 			if (hasDot || bSuffix) oss << '"';
 			return oss.str();
 		}
+
+		[[nodiscard]] bool isLiteral() const { return !bSuffix; }
+
+		[[nodiscard]] const std::string& getLiteral() const { return bSuffix ? prefix : suffix; }
 
 		friend bool operator<(const GlobSegment& lhs, const GlobSegment& rhs)
 		{
