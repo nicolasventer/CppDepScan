@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../StreamAdapter.hpp"
+#include "StreamAdapter.hpp"
 #include <functional>
 #include <iomanip>
 #include <iostream>

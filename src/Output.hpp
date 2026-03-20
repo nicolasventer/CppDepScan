@@ -29,6 +29,8 @@ struct Output
 	// unspecified origin -> UnspecifiedDetectedIncludes
 	std::map<std::string, UnspecifiedDetectedIncludes> unspecifiedIncludesMap;
 
+	bool hasUnresolved = false;
+
 	auto& getIncludes(bool isSpecified, const std::string& dottedPath)
 	{
 		return isSpecified ? specifiedIncludesMap[dottedPath] : unspecifiedIncludesMap[dottedPath];

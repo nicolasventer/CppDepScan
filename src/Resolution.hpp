@@ -34,21 +34,19 @@ private:
 		auto resolvedIncludeSegmentList = utils::file::toSegmentList(resolvedIncludePath);
 
 		const bool isForceIncluded
-			= utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.forceIncludeScanGlobList) != nullptr;
+			= Glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.forceIncludeScanGlobList) != nullptr;
 		const bool isExcluded
 			= !isForceIncluded
-		   && utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.excludeScanGlobList) != nullptr;
+		   && Glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.excludeScanGlobList) != nullptr;
 		if (isExcluded) return;
 		// resolution not excluded
 
-		const bool isAllowed
-			= f.allowedToList == nullptr
-		   || utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, *f.allowedToList) != nullptr;
+		const bool isAllowed = f.allowedToList == nullptr
+							|| Glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, *f.allowedToList) != nullptr;
 		if (isAllowed)
 		{
 			// resolution allowed
-			const auto* includeGroupGlob
-				= utils::glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.groupGlobList);
+			const auto* includeGroupGlob = Glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.groupGlobList);
 			if (includeGroupGlob == f.groupGlob && includeGroupGlob != nullptr) return;
 			// resolution group different from file group
 
@@ -147,10 +145,10 @@ private:
 		auto currentFolderSegmentList = utils::file::toSegmentList(currentFolderIncludePath);
 
 		const bool isForceIncluded
-			= utils::glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.forceIncludeScanGlobList) != nullptr;
+			= Glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.forceIncludeScanGlobList) != nullptr;
 		const bool isExcluded
 			= !isForceIncluded
-		   && utils::glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.excludeScanGlobList) != nullptr;
+		   && Glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.excludeScanGlobList) != nullptr;
 		if (isExcluded) return false;
 		// unresolved not excluded
 

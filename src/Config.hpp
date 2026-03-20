@@ -3,7 +3,6 @@
 #include "Glob.hpp"
 #include "utils/compiler.hpp"
 #include "utils/file.hpp"
-#include "utils/glob.hpp"
 #include "utils/str.hpp"
 #include <filesystem>
 #include <iostream>
@@ -125,10 +124,9 @@ private:
 			if (!utils::file::isCppFile(scanPath)) return;
 			if (!scanGlob.bMatch(scanPathSegmentList)) return;
 			const bool isForceIncluded
-				= utils::glob::getGlobThatMatchesSegmentList(scanPathSegmentList, forceIncludeScanGlobList) != nullptr;
+				= Glob::getGlobThatMatchesSegmentList(scanPathSegmentList, forceIncludeScanGlobList) != nullptr;
 			const bool isExcluded
-				= !isForceIncluded
-			   && utils::glob::getGlobThatMatchesSegmentList(scanPathSegmentList, excludeScanGlobList) != nullptr;
+				= !isForceIncluded && Glob::getGlobThatMatchesSegmentList(scanPathSegmentList, excludeScanGlobList) != nullptr;
 			if (isExcluded) return;
 			cppPathList.push_back(scanPath);
 		}

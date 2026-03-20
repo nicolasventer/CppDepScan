@@ -96,6 +96,14 @@ public:
 		return lhs.prefixSegmentList.size() < rhs.prefixSegmentList.size();
 	}
 
+	[[nodiscard]] static const Glob* getGlobThatMatchesSegmentList(
+		const std::vector<std::string>& segmentList, const std::vector<Glob>& globList)
+	{
+		for (const auto& glob : globList)
+			if (glob.bMatch(segmentList)) return &glob;
+		return nullptr;
+	}
+
 private:
 	class GlobSegment
 	{

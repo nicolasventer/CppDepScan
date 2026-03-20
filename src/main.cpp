@@ -2,7 +2,7 @@
 #include "FileInfo.hpp"
 #include "Output.hpp"
 #include "Resolution.hpp"
-#include "StreamAdapter.hpp"
+#include "utils/StreamAdapter.hpp"
 #include "utils/file.hpp"
 #include "utils/json.hpp"
 #include "utils/str.hpp"
@@ -17,6 +17,8 @@
 #include <string_view>
 #include <utility>
 #include <vector>
+
+using OStreamAdapter = utils::OStreamAdapter;
 
 template <typename T> static OStreamAdapter toJsonOutput(const std::string& /* indent */, const T& /* value */)
 {
@@ -229,7 +231,7 @@ static void usage(const char* prog)
 			  << "  -A, --allowed <from> <to> <from> may include <to>; both are glob patterns matched on include path segments\n"
 			  << "\n"
 			  << "Output:\n"
-			  << "  -o <file>                   Write output to file; may be repeated; .json → JSON, else D2\n"
+			  << "  -o <file>                   Write output to file; may be repeated; .json -> JSON, else D2\n"
 			  << "  --json                       Use JSON for stdout (default: D2)\n"
 			  << "  --std                        Include standard library headers in output (default: off)\n"
 			  << "  -g, --group <path>           Gather files by group; may be repeated\n"
