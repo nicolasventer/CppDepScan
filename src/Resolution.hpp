@@ -57,6 +57,7 @@ private:
 		else
 		{
 			// resolution forbidden
+			result.hasForbidden = true;
 			auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
 			cppInclude.forbiddenSet.insert(utils::file::pathToDotted(resolvedIncludePath));
 		}
@@ -152,6 +153,7 @@ private:
 		if (isExcluded) return false;
 		// unresolved not excluded
 
+		result.hasUnresolved = true;
 		cppInclude.unresolvedSet.insert(utils::file::pathToDotted(currentFolderIncludePath));
 		return false;
 	}

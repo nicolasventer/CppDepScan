@@ -30,6 +30,7 @@ struct Output
 	std::map<std::string, UnspecifiedDetectedIncludes> unspecifiedIncludesMap;
 
 	bool hasUnresolved = false;
+	bool hasForbidden = false;
 
 	auto& getIncludes(bool isSpecified, const std::string& dottedPath)
 	{

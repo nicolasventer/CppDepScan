@@ -459,6 +459,7 @@ CppDepScan [options] <scan_path> [scan_path ...]
 
 - **JSON**: `specifiedIncludeMap` — object mapping each source file (dotted path) to an object with `allowedSet`, `forbiddenSet`, `unresolvedSet`; `unspecifiedIncludeMap` — same shape (e.g. headers only).
 - **D2**: **# specified include list** / **# unspecified include list** — for each file, **# allowed:** edges `from -> to`, **# forbidden:** edges, **# unresolved:** commented-out edges for unresolved includes.
+- **Exit status**: The process exits with `EXIT_SUCCESS` only if all includes are resolved and allowed (true if no `-A` is given) and all files specified (true if no `-A` is given), else the process exits with `EXIT_FAILURE`.
 - **Glob syntax**: `*` matches within one path segment, `**` matches across segments.
   - **Note**: On Windows, **always single-quote glob patterns** in the command line (e.g., `'sample/src/*'`, `'sample/**/*.hpp'`) to prevent premature expansion or parsing errors.
 

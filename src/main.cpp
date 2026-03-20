@@ -278,5 +278,6 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	if (output.hasUnresolved || !output.unspecifiedIncludesMap.empty()) return EXIT_FAILURE;
 	return EXIT_SUCCESS;
 }
