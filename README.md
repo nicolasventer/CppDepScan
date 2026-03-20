@@ -14,6 +14,10 @@ C++ include detection: scan paths, resolve `#include` directives, and output the
 - Output as **JSON** (include maps with allowed/forbidden/unresolved sets) or **D2** (include list with edges)
 - Optional grouping by path (`-g`) and optional standard library headers in output (`--std`)
 
+## Planned Features
+
+For ideas on upcoming CLI options and behaviors, see [`PLANNED_FEATURES.md`](PLANNED_FEATURES.md).
+
 ## Examples
 
 All examples below use the `sample/` directory and write under `result/`. On Windows use `CppDepScan.exe` instead of `CppDepScan`.
