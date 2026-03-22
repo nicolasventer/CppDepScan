@@ -1,0 +1,34 @@
+CompileFlags:
+  Add: [
+      -Wall
+      -Wextra
+      -Wpedantic
+      -Wconversion
+      -Wpadded
+      -Wshadow
+      -Wsign-conversion
+      -Wswitch-enum
+      -Wnull-dereference
+      -Wno-gnu-zero-variadic-macro-arguments
+      -Wno-c2y-extensions,
+    ]
+Diagnostics:
+  UnusedIncludes: Strict
+  MissingIncludes: Strict
+InlayHints:
+  Enabled: Yes
+  ParameterNames: Yes
+  DeducedTypes: Yes
+Hover:
+  ShowAKA: Yes
+---
+If:
+  PathMatch: .*\.(c|h)$
+CompileFlags:
+  Add: [-std=c11]
+---
+If:
+  PathMatch: .*
+  PathExclude: .*\.(c|h)$
+CompileFlags:
+  Add: [-std=c++17]

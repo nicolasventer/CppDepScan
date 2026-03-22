@@ -4,6 +4,7 @@
 #include "utils/compiler.hpp"
 #include "utils/file.hpp"
 #include "utils/str.hpp"
+#include <cstddef>
 #include <filesystem>
 #include <iostream>
 #include <map>
@@ -23,8 +24,8 @@ struct Config
 	std::vector<fs::path> outputPathList;					   // empty implies stdout
 	bool bKeepStdInOutput = false;							   // default: false
 	bool bUseJsonForStdOutput = false;						   // default: D2 lang
-	std::vector<Glob> groupGlobList;
 	bool bHelp = false;
+	std::vector<Glob> groupGlobList;
 
 	// automatically filled
 	std::vector<std::string> stdResolutionIncludePathList;
@@ -37,11 +38,11 @@ struct Config
 		return nullptr;
 	}
 
-	bool parseArgs(int argc, char* argv[])
+	bool parseArgs(size_t argc, char* argv[])
 	{
 		std::vector<std::string> argList(argc);
-		for (int i = 0; i < argc; ++i) argList[i] = utils::str::removeQuotes(argv[i]);
-		for (int i = 1; i < argc; ++i)
+		for (size_t i = 0; i < argc; ++i) argList[i] = utils::str::removeQuotes(argv[i]);
+		for (size_t i = 1; i < argc; ++i)
 		{
 			const std::string& a = argList[i];
 			if (a == "-I" && i + 1 < argc)

@@ -8,7 +8,6 @@
 #include "utils/str.hpp"
 #include <cstddef>
 #include <cstdlib>
-#include <exception>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -248,7 +247,7 @@ static void usage(const char* prog)
 int main(int argc, char* argv[])
 {
 	Config cfg;
-	if (!cfg.parseArgs(argc, argv))
+	if (!cfg.parseArgs(static_cast<size_t>(argc), argv))
 	{
 		usage(argv[0]);
 		return cfg.bHelp ? EXIT_SUCCESS : EXIT_FAILURE;

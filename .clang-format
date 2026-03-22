@@ -31,4 +31,4 @@ AllowShortEnumsOnASingleLine: true
 AlignConsecutiveShortCaseStatements:
   Enabled: true
 AlignOperands: AlignAfterOperator
-AlignEscapedNewlines: Left
+AlignEscapedNewlines: LeftWithLastLine
