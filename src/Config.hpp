@@ -41,11 +41,11 @@ struct Config
 	bool parseArgs(size_t argc, char* argv[])
 	{
 		std::vector<std::string> argList(argc);
-		for (size_t i = 0; i < argc; ++i) argList[i] = utils::str::removeQuotes(argv[i]);
+		for (size_t i = 0; i < argc; ++i) argList[i] = utils::str::toLower(utils::str::removeQuotes(argv[i]));
 		for (size_t i = 1; i < argc; ++i)
 		{
 			const std::string& a = argList[i];
-			if (a == "-I" && i + 1 < argc)
+			if (a == "-i" && i + 1 < argc)
 			{
 				std::string& path = argList[++i];
 				if (path.back() == '/') path.pop_back();
@@ -58,7 +58,7 @@ struct Config
 				if (path.front() == '!') forceIncludeScanGlobList.emplace_back(path.substr(1));
 				else excludeScanGlobList.emplace_back(path);
 			}
-			else if ((a == "-A" || a == "--allowed") && i + 2 < argc)
+			else if ((a == "-a" || a == "--allowed") && i + 2 < argc)
 			{
 				const std::string& fromStr = argList[++i];
 				const std::string& toStr = argList[++i];

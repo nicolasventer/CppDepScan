@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cctype>
+#include <string>
 #include <string_view>
 
 namespace utils::str
@@ -26,5 +28,12 @@ namespace utils::str
 	{
 		if (str.front() == '\'') return str.substr(1, str.size() - 2);
 		return str;
+	}
+
+	inline std::string toLower(std::string_view str)
+	{
+		std::string result(str);
+		for (char& c : result) c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+		return result;
 	}
 }; // namespace utils::str

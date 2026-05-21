@@ -10,7 +10,7 @@ C++ include detection: scan paths, resolve `#include` directives, and output the
 - Glob-aware path matching for scan/exclude/allowed/group rules (`*`, `**`)
 - Resolve `#include "..."` and `#include <...>` with configurable include paths
 - Exclude paths from scanning; force-include with `-e !<path>`
-- Declare allowed includes (`-A`) for dependency rules
+- Declare allowed includes (`-a`) for dependency rules
 - Output as **JSON** (include maps with allowed/forbidden/unresolved sets) or **D2** (include list with edges)
 - Optional grouping by path (`-g`) and optional standard library headers in output (`--std`)
 
@@ -160,10 +160,10 @@ CppDepScan sample -e sample/build -e sample/external -e !sample/external/keep -o
 
 </details>
 
-### Include paths (`-I`)
+### Include paths (`-i`)
 
 ```bash
-CppDepScan sample/src -I sample/include -o result/include.d2
+CppDepScan sample/src -i sample/include -o result/include.d2
 ```
 
 <details>
@@ -176,7 +176,7 @@ CppDepScan sample/src -I sample/include -o result/include.d2
 ### Scan path with glob (`*`)
 
 ```bash
-CppDepScan 'sample/src/*' -I sample/include -o result/include_glob_scan.d2
+CppDepScan 'sample/src/*' -i sample/include -o result/include_glob_scan.d2
 ```
 
 <details>
@@ -186,10 +186,10 @@ CppDepScan 'sample/src/*' -I sample/include -o result/include_glob_scan.d2
 
 </details>
 
-### Allowed includes (`-A`, `--allowed`)
+### Allowed includes (`-a`, `--allowed`)
 
 ```bash
-CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app -o result/allowed.d2
+CppDepScan sample/src -i sample/include -a sample/src/main.cpp sample/src/app -a sample/src/main.cpp sample/include -a sample/src/legacy.c sample/src/app -o result/allowed.d2
 ```
 
 <details>
@@ -202,7 +202,7 @@ CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A
 ### Grouping (`-g`, `--group`)
 
 ```bash
-CppDepScan sample -e sample/build -e sample/external -I sample/include -g sample/include -g sample/external -g sample/src -o result/group.d2
+CppDepScan sample -e sample/build -e sample/external -i sample/include -g sample/include -g sample/external -g sample/src -o result/group.d2
 ```
 
 <details>
@@ -235,7 +235,7 @@ sample.src -> sample.include
 ### Standard library in output (`--std`)
 
 ```bash
-CppDepScan sample/src sample/external -I sample/include -g sample/src -g sample/external --std -o result/std.d2
+CppDepScan sample/src sample/external -i sample/include -g sample/src -g sample/external --std -o result/std.d2
 ```
 
 <details>
@@ -271,7 +271,7 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 ### JSON output
 
 ```bash
-CppDepScan sample/src -I sample/include -o result/include.json
+CppDepScan sample/src -i sample/include -o result/include.json
 ```
 
 <details>
@@ -366,7 +366,7 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 Resolve with `-I` then exclude the file so the edge appears as allowed and the file is hidden from the graph.
 
 ```bash
-CppDepScan sample -I sample/include -e sample/include/extra.hpp -o result/exclude_include.d2
+CppDepScan sample -i sample/include -e sample/include/extra.hpp -o result/exclude_include.d2
 ```
 
 <details>
@@ -416,7 +416,7 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 When an include is forbidden or unresolved, the edge is still shown from the specified file; grouping does not attach it to the group node.
 
 ```bash
-CppDepScan sample/src -g sample/src -I sample/include -A sample/src/main.cpp sample/src -A sample/src/app sample/src/app -A sample/src/lib sample/src/lib -o result/ignored_group.d2
+CppDepScan sample/src -g sample/src -i sample/include -a sample/src/main.cpp sample/src -a sample/src/app sample/src/app -a sample/src/lib sample/src/lib -o result/ignored_group.d2
 ```
 
 <details>
@@ -446,11 +446,11 @@ CppDepScan [options] <scan_path> [scan_path ...]
 
 | Option                        | Description                                                                   |
 | ----------------------------- | ----------------------------------------------------------------------------- |
-| `-I <path>`                   | Add include path for resolution (folder or file); may be repeated.            |
-| `-A`, `--allowed <from> <to>` | \<from\> may include \<to\>; both are glob patterns matched; may be repeated. |
+| `-i <path>`                   | Add include path for resolution (folder or file); may be repeated.            |
+| `-a`, `--allowed <from> <to>` | \<from\> may include \<to\>; both are glob patterns matched; may be repeated. |
 
-- **Include paths** (`-I`): used to resolve `#include "..."` and `#include <...>`. The current file's directory is always tried first for `"..."`.
-- **Allowed** (`-A`): declare that \<from\> may include \<to\>; used for dependency rules and reflected in D2/JSON output.
+- **Include paths** (`-i`): used to resolve `#include "..."` and `#include <...>`. The current file's directory is always tried first for `"..."`.
+- **Allowed** (`-a`): declare that \<from\> may include \<to\>; used for dependency rules and reflected in D2/JSON output.
 
 **Output**
 
@@ -463,7 +463,7 @@ CppDepScan [options] <scan_path> [scan_path ...]
 
 - **JSON**: `specifiedIncludeMap` — object mapping each source file (dotted path) to an object with `allowedSet`, `forbiddenSet`, `unresolvedSet`; `unspecifiedIncludeMap` — same shape (e.g. headers only).
 - **D2**: **# specified include list** / **# unspecified include list** — for each file, **# allowed:** edges `from -> to`, **# forbidden:** edges, **# unresolved:** commented-out edges for unresolved includes.
-- **Exit status**: The process exits with `EXIT_SUCCESS` only if all includes are resolved and allowed (true if no `-A` is given) and all files specified (true if no `-A` is given), else the process exits with `EXIT_FAILURE`.
+- **Exit status**: The process exits with `EXIT_SUCCESS` only if all includes are resolved and allowed (true if no `-a` is given) and all files specified (true if no `-a` is given), else the process exits with `EXIT_FAILURE`.
 - **Glob syntax**: `*` matches within one path segment, `**` matches across segments.
   - **Note**: On Windows, **always single-quote glob patterns** in the command line (e.g., `'sample/src/*'`, `'sample/**/*.hpp'`) to prevent premature expansion or parsing errors.
 

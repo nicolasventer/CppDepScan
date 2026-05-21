@@ -2,7 +2,9 @@
 
 #include "Config.hpp"
 #include "FileInfo.hpp"
+#include "Glob.hpp"
 #include "Output.hpp"
+#include "utils/file.hpp"
 #include <filesystem>
 #include <string>
 #include <vector>
