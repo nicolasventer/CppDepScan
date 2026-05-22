@@ -2,18 +2,18 @@
 
 ## Description
 
-C++ include detection: scan paths, resolve `#include` directives, and output the include graph as JSON and/or [D2](https://d2lang.com/).
+C++ include detection: scan globs, resolve `#include` directives, and output the include graph as JSON and/or [D2](https://d2lang.com/).
 
 ## Features
 
 - Scan C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`)
 - Glob-aware path matching for scan/exclude/allowed/group rules (`*`, `**`)
 - Resolve `#include "..."` and `#include <...>` using the current folder and configurable include paths
-- Exclude paths from scanning; force-include with `-e !<path>`
+- Exclude globs from scanning; force-include with `-e !<glob>`
 - Declare allowed includes (`-a`) for dependency rules
 - Output as **JSON** or **D2**, to files and/or stdout
 - Track allowed, forbidden, and unresolved include relationships
-- Optional grouping by path (`-g`), sibling-style links (`--brother-links`), and standard library headers in output (`--std`)
+- Optional grouping by glob (`-g`), sibling-style links (`--brother-links`), and standard library headers in output (`--std`)
 
 ## Planned Features
 
@@ -104,7 +104,7 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 
 </details>
 
-### Exclude paths (`-e`)
+### Exclude globs (`-e`)
 
 ```bash
 CppDepScan sample -e sample/build -e sample/external -o result/exclude_build_external.d2
@@ -148,7 +148,7 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 
 </details>
 
-### Exclude with keep (`-e !<path>`)
+### Exclude with keep (`-e !<glob>`)
 
 ```bash
 CppDepScan sample -e sample/build -e sample/external -e !sample/external/keep -o result/exclude_build_external_keep.d2
@@ -174,7 +174,7 @@ CppDepScan sample/src -i sample/include -o result/include.d2
 
 </details>
 
-### Scan path with glob (`*`)
+### Scan glob (`*`)
 
 ```bash
 CppDepScan 'sample/src/*' -i sample/include -o result/include_glob_scan.d2
@@ -187,7 +187,7 @@ CppDepScan 'sample/src/*' -i sample/include -o result/include_glob_scan.d2
 
 </details>
 
-### Scan path with recursive glob (`**`)
+### Scan glob with recursion (`**`)
 
 ```bash
 CppDepScan 'sample/src/**/*.hpp' -i sample/include -o result/include_glob_recursive_scan.d2
@@ -213,7 +213,7 @@ CppDepScan sample/src -i sample/include -a sample/src/main.cpp sample/src/app -a
 
 </details>
 
-**Note**: When at least one allowed rule is specified, all files not described by an allowed rule are considered **unspecified**. If you don't want a file to include anything, just add a rule with an invalid, empty or itself as allowed path (e.g. `-a sample/src/legacy.c ''`).
+**Note**: When at least one allowed rule is specified, all files not described by an allowed rule are considered **unspecified**. If you don't want a file to include anything, just add a rule with an invalid, empty or itself as allowed glob (e.g. `-a sample/src/legacy.c ''`).
 
 ### Grouping (`-g`, `--group`)
 
@@ -458,28 +458,28 @@ CppDepScan sample/src -g sample/src -i sample/include -a sample/src/main.cpp sam
 ## Usage
 
 ```
-CppDepScan [options] <scan_path> [scan_path ...]
+CppDepScan [options] <scan_glob> [scan_glob ...]
 ```
 
-**Scan paths**
+**Scan globs**
 
-| Option       | Description                                                       |
-| ------------ | ----------------------------------------------------------------- |
-| `-e <path>`  | Exclude path/glob for scanning (folder or file); may be repeated. |
-| `-e !<path>` | Keep path/glob for scanning even if it lies under an exclude.     |
+| Option       | Description                                                   |
+| ------------ | ------------------------------------------------------------- |
+| `-e <glob>`  | Exclude glob for scanning (folder, file, or pattern); repeat. |
+| `-e !<glob>` | Keep glob for scanning even if it lies under an exclude.      |
 
-- **Scan paths** (positional): files/directories or glob patterns to scan for C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`).
-- **Exclude** (`-e`): folder/file path or glob pattern to skip during scan. Use `-e !<path>` to force-include a path that would otherwise be excluded.
+- **Scan globs** (positional): file, directory, or glob inputs to scan for C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`).
+- **Exclude** (`-e`): file, directory, or glob pattern to skip during scan. Use `-e !<glob>` to force-include a glob that would otherwise be excluded.
 
 **Resolution**
 
-| Option                        | Description                                                        |
-| ----------------------------- | ------------------------------------------------------------------ |
-| `-i <path>`                   | Add include path for resolution (folder or file); may be repeated. |
-| `-a`, `--allowed <from> <to>` | Specify that <from> may include <to>; may be repeated.             |
+| Option                        | Description                                                                |
+| ----------------------------- | -------------------------------------------------------------------------- |
+| `-i <path>`                   | Add include path for resolution (folder or file); may be repeated.         |
+| `-a`, `--allowed <from> <to>` | Specify that `<from>` may include `<to>`; both are globs; may be repeated. |
 
 - **Include paths** (`-i`): used to resolve `#include "..."` and `#include <...>`. The current file's directory is always tried first for `"..."`.
-- **Allowed** (`-a`): declare that `<from>` may include `<to>`; used for dependency rules and reflected in D2/JSON output.
+- **Allowed** (`-a`): declare that `<from>` may include `<to>`; both values are globs and are reflected in the dependency rules and D2/JSON output.
 
 **Output**
 
@@ -489,7 +489,7 @@ CppDepScan [options] <scan_path> [scan_path ...]
 | `--json`               | Use JSON for stdout (default when no `-o`: D2).                         |
 | `--brother-links`      | Make links always between elements in the same folder (default: false). |
 | `--std`                | Include standard library headers in output (default: false).            |
-| `-g`, `--group <path>` | Gather files by group; path may be repeated.                            |
+| `-g`, `--group <glob>` | Gather files by group glob; may be repeated.                            |
 
 - **JSON**: `specifiedIncludeMap` — object mapping each source file (dotted path) to an object with `allowedSet`, `forbiddenSet`, `unresolvedSet`; `unspecifiedIncludeMap` — same shape (e.g. headers only).
 - **D2**: **# specified include list** / **# unspecified include list** — for each file, **# allowed:** edges `from -> to`, **# forbidden:** edges, **# unresolved:** commented-out edges for unresolved includes.
