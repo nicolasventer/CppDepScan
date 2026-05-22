@@ -1,8 +1,8 @@
 #pragma once
 
 #include "utils/str.hpp"
+#include <cstddef>
 #include <filesystem>
-#include <iostream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -20,8 +20,10 @@ public:
 			const bool isLast = i == pattern.size() - 1;
 			if (pattern[i] == '/' || pattern[i] == '\\' || isLast)
 			{
-				auto& segmentList = bSuffix ? suffixSegmentList : prefixSegmentList;
-				segmentList.emplace_back(pattern.substr(lastPos, i - lastPos + (isLast ? 1 : 0)));
+				auto& globSegmentList = bSuffix ? suffixGlobSegmentList : prefixGlobSegmentList;
+				auto segment = pattern.substr(lastPos, i - lastPos + (isLast ? 1 : 0));
+				globSegmentList.emplace_back(segment);
+				segmentList.push_back(segment);
 				lastPos = i + 1;
 				if (!isLast && pattern[i + 1] == '\\') ++i;
 			}
@@ -44,14 +46,15 @@ public:
 		bSuffix |= pattern.back() != '*'; // make the match not exact if the last character is not '*'
 	}
 
-	[[nodiscard]] bool bMatch(const std::vector<std::string>& segmentList) const
+	[[nodiscard]] bool bMatch(const std::vector<std::string>& candidateSegments) const
 	{
-		if (prefixSegmentList.size() + suffixSegmentList.size() > segmentList.size()) return false;
-		if (!bSuffix && prefixSegmentList.size() != segmentList.size()) return false;
-		for (size_t i = 0; i < prefixSegmentList.size(); ++i)
-			if (!prefixSegmentList[i].bMatch(segmentList[i])) return false;
-		for (size_t i = 0; i < suffixSegmentList.size(); ++i)
-			if (!suffixSegmentList[i].bMatch(segmentList[segmentList.size() - suffixSegmentList.size() + i])) return false;
+		if (prefixGlobSegmentList.size() + suffixGlobSegmentList.size() > candidateSegments.size()) return false;
+		if (!bSuffix && prefixGlobSegmentList.size() != candidateSegments.size()) return false;
+		for (size_t i = 0; i < prefixGlobSegmentList.size(); ++i)
+			if (!prefixGlobSegmentList[i].bMatch(candidateSegments[i])) return false;
+		for (size_t i = 0; i < suffixGlobSegmentList.size(); ++i)
+			if (!suffixGlobSegmentList[i].bMatch(candidateSegments[candidateSegments.size() - suffixGlobSegmentList.size() + i]))
+				return false;
 		return true;
 	}
 
@@ -59,10 +62,10 @@ public:
 	{
 		std::ostringstream oss;
 
-		for (const auto& segment : prefixSegmentList)
+		for (const auto& segment : prefixGlobSegmentList)
 			if (!segment.isDot()) oss << segment.toDotted() << ".";
 		oss << (bSuffix ? "\"**\"." : "");
-		for (const auto& segment : suffixSegmentList)
+		for (const auto& segment : suffixGlobSegmentList)
 			if (!segment.isDot()) oss << segment.toDotted() << ".";
 
 		std::string result = oss.str();
@@ -76,7 +79,7 @@ public:
 	[[nodiscard]] std::filesystem::path toRootPath() const
 	{
 		std::filesystem::path result;
-		for (const auto& segment : prefixSegmentList)
+		for (const auto& segment : prefixGlobSegmentList)
 		{
 			if (segment.getLiteral().empty()) break;
 			result /= segment.getLiteral();
@@ -85,15 +88,17 @@ public:
 		return result;
 	}
 
+	[[nodiscard]] const std::vector<std::string>& getSegmentList() const { return segmentList; }
+
 	friend bool operator<(const Glob& lhs, const Glob& rhs)
 	{
-		auto minSize = std::min(lhs.prefixSegmentList.size(), rhs.prefixSegmentList.size());
+		auto minSize = std::min(lhs.prefixGlobSegmentList.size(), rhs.prefixGlobSegmentList.size());
 		for (size_t i = 0; i < minSize; ++i)
 		{
-			if (lhs.prefixSegmentList[i] < rhs.prefixSegmentList[i]) return true;
-			if (rhs.prefixSegmentList[i] < lhs.prefixSegmentList[i]) return false;
+			if (lhs.prefixGlobSegmentList[i] < rhs.prefixGlobSegmentList[i]) return true;
+			if (rhs.prefixGlobSegmentList[i] < lhs.prefixGlobSegmentList[i]) return false;
 		}
-		return lhs.prefixSegmentList.size() < rhs.prefixSegmentList.size();
+		return lhs.prefixGlobSegmentList.size() < rhs.prefixGlobSegmentList.size();
 	}
 
 	[[nodiscard]] static const Glob* getGlobThatMatchesSegmentList(
@@ -160,7 +165,8 @@ private:
 		bool bSuffix = false;
 	};
 
-	std::vector<GlobSegment> prefixSegmentList;
-	std::vector<GlobSegment> suffixSegmentList;
+	std::vector<GlobSegment> prefixGlobSegmentList;
+	std::vector<GlobSegment> suffixGlobSegmentList;
+	std::vector<std::string> segmentList;
 	bool bSuffix = false; // if false, the match should be exact
 };

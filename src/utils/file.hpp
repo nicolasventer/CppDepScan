@@ -1,5 +1,7 @@
 #pragma once
 
+#include <algorithm>
+#include <cstddef>
 #include <filesystem>
 #include <sstream>
 #include <string>
@@ -38,6 +40,14 @@ namespace utils::file
 
 		const std::string result = oss.str();
 		return result.substr(0, result.size() - 1);
+	}
+
+	inline size_t commonLength(const std::vector<std::string>& segmentListA, const std::vector<std::string>& segmentListB)
+	{
+		const size_t minLength = std::min(segmentListA.size(), segmentListB.size());
+		for (size_t i = 0; i < minLength; ++i)
+			if (segmentListA[i] != segmentListB[i]) return i;
+		return minLength;
 	}
 
 } // namespace utils::file

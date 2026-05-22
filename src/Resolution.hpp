@@ -5,6 +5,7 @@
 #include "Glob.hpp"
 #include "Output.hpp"
 #include "utils/file.hpp"
+#include "utils/segment_list.hpp"
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -52,16 +53,27 @@ private:
 			if (includeGroupGlob == f.groupGlob && includeGroupGlob != nullptr) return;
 			// resolution group different from file group
 
-			auto dottedPath
+			const auto dottedPath
 				= includeGroupGlob != nullptr ? includeGroupGlob->toDotted() : utils::file::pathToDotted(resolvedIncludePath);
-			detectedIncludes.allowedSet.insert(dottedPath);
+			if (config.bBrotherLinks)
+			{
+				const auto cppPathSegmentList
+					= includeGroupGlob != nullptr ? includeGroupGlob->getSegmentList() : utils::file::toSegmentList(*f.cppPath);
+
+				const auto commonLength = utils::file::commonLength(cppPathSegmentList, resolvedIncludeSegmentList);
+				const auto commonCppDottedPath = utils::segment_list::toDotted(cppPathSegmentList, commonLength + 1);
+				const auto resolvedDottedPath = utils::segment_list::toDotted(resolvedIncludeSegmentList, commonLength + 1);
+				auto& commonCppIncludes = result.getIncludes(f.isSpecified, commonCppDottedPath);
+				commonCppIncludes.allowedSet.insert(resolvedDottedPath);
+			}
+			else detectedIncludes.allowedSet.insert(dottedPath);
 		}
 		else
 		{
 			// resolution forbidden
 			result.hasForbidden = true;
-			auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
-			cppInclude.forbiddenSet.insert(utils::file::pathToDotted(resolvedIncludePath));
+			auto& cppIncludes = result.getIncludes(f.isSpecified, f.cppDottedPath);
+			cppIncludes.forbiddenSet.insert(utils::file::pathToDotted(resolvedIncludePath));
 		}
 	}
 

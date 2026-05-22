@@ -6,7 +6,7 @@ CppDepScan sample/src -I sample/include -o result/include.d2
 CppDepScan 'sample/src/*.cpp' -I sample/include -o result/include_glob_scan.d2
 
 CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app -o result/allowed.d2
-CppDepScan.exe sample/src -A 'sample/src/*' sample/src/app -I sample/include -o result/glob_allowed.d2
+CppDepScan sample/src -A 'sample/src/*' sample/src/app -I sample/include -o result/glob_allowed.d2
 
 CppDepScan sample -e sample/build -e sample/src/nonexistent.h -I sample/include -g sample/include -g sample/external -g sample/src -o result/group.d2
 CppDepScan sample -e sample/build -e sample/src/nonexistent.h -I sample/include -g 'sample/**/*.hpp' -o result/glob_group.d2

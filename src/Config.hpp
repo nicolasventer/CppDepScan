@@ -22,13 +22,15 @@ struct Config
 	std::map<Glob, size_t> allowedIncludeIndexMap;			   // from -> index of allowedIncludeGlobListList
 	std::vector<std::vector<Glob>> allowedIncludeGlobListList; // list of allowed include lists
 	std::vector<fs::path> outputPathList;					   // empty implies stdout
-	bool bKeepStdInOutput = false;							   // default: false
-	bool bUseJsonForStdOutput = false;						   // default: D2 lang
-	bool bHelp = false;
 	std::vector<Glob> groupGlobList;
 
 	// automatically filled
 	std::vector<std::string> stdResolutionIncludePathList;
+
+	bool bKeepStdInOutput = false;	   // default: false
+	bool bUseJsonForStdOutput = false; // default: D2 lang
+	bool bBrotherLinks = false;		   // default: false
+	bool bHelp = false;
 
 	[[nodiscard]] const std::vector<Glob>* getAllowedToList(const fs::path& cppPath) const
 	{
@@ -75,6 +77,7 @@ struct Config
 			else if (a == "-o" && i + 1 < argc) outputPathList.emplace_back(argList[++i]);
 			else if (a == "--std") bKeepStdInOutput = true;
 			else if (a == "--json") bUseJsonForStdOutput = true;
+			else if (a == "-b" || a == "--brother-links") bBrotherLinks = true;
 			else if ((a == "-g" || a == "--group") && i + 1 < argc)
 			{
 				const std::string& path = argList[++i];

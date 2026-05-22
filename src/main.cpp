@@ -232,6 +232,7 @@ static void usage(const char* prog)
 			  << "Output:\n"
 			  << "  -o <file>                   Write output to file; may be repeated; .json -> JSON, else D2\n"
 			  << "  --json                       Use JSON for stdout (default: D2)\n"
+			  << "  -b, --brother-links          Make links always between elements in the same folder\n"
 			  << "  --std                        Include standard library headers in output (default: off)\n"
 			  << "  -g, --group <path>           Gather files by group; may be repeated\n"
 			  << "\n"
