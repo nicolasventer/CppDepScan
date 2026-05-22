@@ -8,11 +8,12 @@ C++ include detection: scan paths, resolve `#include` directives, and output the
 
 - Scan C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`)
 - Glob-aware path matching for scan/exclude/allowed/group rules (`*`, `**`)
-- Resolve `#include "..."` and `#include <...>` with configurable include paths
+- Resolve `#include "..."` and `#include <...>` using the current folder and configurable include paths
 - Exclude paths from scanning; force-include with `-e !<path>`
 - Declare allowed includes (`-a`) for dependency rules
-- Output as **JSON** (include maps with allowed/forbidden/unresolved sets) or **D2** (include list with edges)
-- Optional grouping by path (`-g`) and optional standard library headers in output (`--std`)
+- Output as **JSON** or **D2**, to files and/or stdout
+- Track allowed, forbidden, and unresolved include relationships
+- Optional grouping by path (`-g`), sibling-style links (`--brother-links`), and standard library headers in output (`--std`)
 
 ## Planned Features
 
@@ -186,18 +187,33 @@ CppDepScan 'sample/src/*' -i sample/include -o result/include_glob_scan.d2
 
 </details>
 
+### Scan path with recursive glob (`**`)
+
+```bash
+CppDepScan 'sample/src/**/*.hpp' -i sample/include -o result/include_glob_recursive_scan.d2
+```
+
+<details>
+<summary>Rendered image</summary>
+
+![include glob recursive scan](result/include_glob_recursive_scan.png)
+
+</details>
+
 ### Allowed includes (`-a`, `--allowed`)
 
 ```bash
 CppDepScan sample/src -i sample/include -a sample/src/main.cpp sample/src/app -a sample/src/main.cpp sample/include -a sample/src/legacy.c sample/src/app -o result/allowed.d2
 ```
 
-<details>
+<details open>
 <summary>Rendered image</summary>
 
 ![allowed](result/allowed.png)
 
 </details>
+
+**Note**: When at least one allowed rule is specified, all files not described by an allowed rule are considered **unspecified**. If you don't want a file to include anything, just add a rule with an invalid, empty or itself as allowed path (e.g. `-a sample/src/legacy.c ''`).
 
 ### Grouping (`-g`, `--group`)
 
@@ -229,6 +245,19 @@ sample.src -> sample.include
 <summary>Rendered image</summary>
 
 ![group](result/group.png)
+
+</details>
+
+### Brother links (`--brother-links`)
+
+```bash
+CppDepScan sample/src -i sample/include --brother-links -o result/brother_links.d2
+```
+
+<details>
+<summary>Rendered image</summary>
+
+![brother links](result/brother_links.png)
 
 </details>
 
@@ -444,22 +473,23 @@ CppDepScan [options] <scan_path> [scan_path ...]
 
 **Resolution**
 
-| Option                        | Description                                                                   |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| `-i <path>`                   | Add include path for resolution (folder or file); may be repeated.            |
-| `-a`, `--allowed <from> <to>` | \<from\> may include \<to\>; both are glob patterns matched; may be repeated. |
+| Option                        | Description                                                        |
+| ----------------------------- | ------------------------------------------------------------------ |
+| `-i <path>`                   | Add include path for resolution (folder or file); may be repeated. |
+| `-a`, `--allowed <from> <to>` | Specify that <from> may include <to>; may be repeated.             |
 
 - **Include paths** (`-i`): used to resolve `#include "..."` and `#include <...>`. The current file's directory is always tried first for `"..."`.
-- **Allowed** (`-a`): declare that \<from\> may include \<to\>; used for dependency rules and reflected in D2/JSON output.
+- **Allowed** (`-a`): declare that `<from>` may include `<to>`; used for dependency rules and reflected in D2/JSON output.
 
 **Output**
 
-| Option                 | Description                                                          |
-| ---------------------- | -------------------------------------------------------------------- |
-| `-o <file>`            | Write output to file; may be repeated. `.json` → JSON, otherwise D2. |
-| `--json`               | Use JSON for stdout (default when no `-o`: D2).                      |
-| `--std`                | Include standard library headers in output (default: off).           |
-| `-g`, `--group <path>` | Gather files by group; path may be repeated.                         |
+| Option                 | Description                                                             |
+| ---------------------- | ----------------------------------------------------------------------- |
+| `-o <file>`            | Write output to file; may be repeated. `.json` → JSON, otherwise D2.    |
+| `--json`               | Use JSON for stdout (default when no `-o`: D2).                         |
+| `--brother-links`      | Make links always between elements in the same folder (default: false). |
+| `--std`                | Include standard library headers in output (default: false).            |
+| `-g`, `--group <path>` | Gather files by group; path may be repeated.                            |
 
 - **JSON**: `specifiedIncludeMap` — object mapping each source file (dotted path) to an object with `allowedSet`, `forbiddenSet`, `unresolvedSet`; `unspecifiedIncludeMap` — same shape (e.g. headers only).
 - **D2**: **# specified include list** / **# unspecified include list** — for each file, **# allowed:** edges `from -> to`, **# forbidden:** edges, **# unresolved:** commented-out edges for unresolved includes.

@@ -77,7 +77,7 @@ struct Config
 			else if (a == "-o" && i + 1 < argc) outputPathList.emplace_back(argList[++i]);
 			else if (a == "--std") bKeepStdInOutput = true;
 			else if (a == "--json") bUseJsonForStdOutput = true;
-			else if (a == "-b" || a == "--brother-links") bBrotherLinks = true;
+			else if (a == "--brother-links") bBrotherLinks = true;
 			else if ((a == "-g" || a == "--group") && i + 1 < argc)
 			{
 				const std::string& path = argList[++i];

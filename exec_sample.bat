@@ -4,6 +4,7 @@ CppDepScan sample -e sample/build -e sample/external -e !sample/external/keep -o
 
 CppDepScan sample/src -I sample/include -o result/include.d2
 CppDepScan 'sample/src/*.cpp' -I sample/include -o result/include_glob_scan.d2
+CppDepScan 'sample/src/**/*.hpp' -I sample/include -o result/include_glob_recursive_scan.d2
 
 CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app -o result/allowed.d2
 CppDepScan sample/src -A 'sample/src/*' sample/src/app -I sample/include -o result/glob_allowed.d2
@@ -13,6 +14,7 @@ CppDepScan sample -e sample/build -e sample/src/nonexistent.h -I sample/include 
 
 CppDepScan sample/src sample/external -I sample/include -g sample/src -g sample/external --std -o result/std.d2
 CppDepScan sample/src -I sample/include -o result/include.json
+CppDepScan sample/src -I sample/include --brother-links -o result/brother_links.d2
 
 @REM Special cases:
 
