@@ -1,3 +1,5 @@
+# CppDepScan sample/src -g sample/src -I sample/include -A sample/src/main.cpp sample/src -A sample/src/app sample/src/app -A sample/src/lib sample/src/lib -o result/ignored_group.d2
+
 classes: {
   forbidden: {
     style: {
@@ -7,13 +9,13 @@ classes: {
   unspecified: {
     style: {
       stroke: "orange"
-	  fill: "orange"
+      fill: "orange"
     }
   }
   unresolved: {
     style: {
       stroke: "gray"
-	  fill: "gray"
+      fill: "gray"
     }
   }
 }

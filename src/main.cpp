@@ -104,7 +104,11 @@ template <> OStreamAdapter toD2Output<Output>(const Output& value)
 		{
 			const auto& specifiedIncludeMap = value.specifiedIncludesMap;
 			const auto& unspecifiedIncludeMap = value.unspecifiedIncludesMap;
-			os << R"(classes: {
+			os << "#";
+			for (const auto& arg : value.commandLine) os << " " << arg;
+			os << R"(
+
+classes: {
   forbidden: {
     style: {
       stroke: "red"
@@ -113,13 +117,13 @@ template <> OStreamAdapter toD2Output<Output>(const Output& value)
   unspecified: {
     style: {
       stroke: "orange"
-	  fill: "orange"
+      fill: "orange"
     }
   }
   unresolved: {
     style: {
       stroke: "gray"
-	  fill: "gray"
+      fill: "gray"
     }
   }
 }

@@ -42,28 +42,41 @@ classes: {
   unspecified: {
     style: {
       stroke: "orange"
-	  fill: "orange"
+      fill: "orange"
     }
   }
   unresolved: {
     style: {
       stroke: "gray"
-	  fill: "gray"
+      fill: "gray"
     }
   }
 }
 vars: {
   d2-legend: {
-    a: { label: Specified }
-    b: Unspecified { label: Unspecified; class: unspecified }
-    c: Unresolved { label: Unresolved; class: unresolved }
+    a: {
+      label: Specified
+    }
+    b: Unspecified {
+      label: Unspecified
+      class: unspecified
+    }
+    c: Unresolved {
+      label: Unresolved
+      class: unresolved
+    }
     a -> b: Allowed
-    a -> b: Forbidden { class: forbidden }
-    a -> b: Unresolved { class: unresolved }
+    a -> b: Forbidden {
+      class: forbidden
+    }
+    a -> b: Unresolved {
+      class: unresolved
+    }
   }
 }
 
 # specified include list:
+
 # files:
 sample.build."junk.cpp"
 sample.external."skip.cpp"
@@ -86,6 +99,7 @@ sample.src."main.cpp" -> sample.src.lib."public.hpp"
 sample.src.app."app.cpp" -> sample.src.app."app.hpp"
 
 # forbidden:
+
 # unresolved:
 sample.build."nothing.hpp".class: unresolved
 sample.build."junk.cpp" -> sample.build."nothing.hpp": {class: unresolved}
@@ -115,6 +129,7 @@ CppDepScan sample -e sample/build -e sample/external -o result/exclude_build_ext
 
 ```d2
 # specified include list:
+
 # files:
 sample.include."extra.hpp"
 sample.src."legacy.c"
@@ -132,6 +147,7 @@ sample.src."main.cpp" -> sample.src.lib."public.hpp"
 sample.src.app."app.cpp" -> sample.src.app."app.hpp"
 
 # forbidden:
+
 # unresolved:
 sample.src."extra.hpp".class: unresolved
 sample.src."main.cpp" -> sample.src."extra.hpp": {class: unresolved}
@@ -226,16 +242,17 @@ CppDepScan sample -e sample/build -e sample/external -i sample/include -g sample
 
 ```d2
 # specified include list:
+
 # files:
 sample.external
 sample.include
 sample.src
-sample.src."main.cpp"
 
 # allowed:
 sample.src -> sample.include
 
 # forbidden:
+
 # unresolved:
 ```
 
@@ -328,6 +345,7 @@ CppDepScan sample/src sample/external -i sample/include -g sample/src -g sample/
 
 ```d2
 # specified include list:
+
 # files:
 sample.external
 sample.src
@@ -339,6 +357,7 @@ sample.src -> iostream
 sample.src -> sample.include."extra.hpp"
 
 # forbidden:
+
 # unresolved:
 sample.src."nonexistent.h".class: unresolved
 sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
@@ -408,6 +427,7 @@ CppDepScan sample -e sample/src/extra.hpp -o result/exclude_unresolved.d2
 
 ```d2
 # specified include list:
+
 # files:
 sample.build."junk.cpp"
 sample.external."skip.cpp"
@@ -430,6 +450,7 @@ sample.src."main.cpp" -> sample.src.lib."public.hpp"
 sample.src.app."app.cpp" -> sample.src.app."app.hpp"
 
 # forbidden:
+
 # unresolved:
 sample.build."nothing.hpp".class: unresolved
 sample.build."junk.cpp" -> sample.build."nothing.hpp": {class: unresolved}
@@ -459,6 +480,7 @@ CppDepScan sample -i sample/include -e sample/include/extra.hpp -o result/exclud
 
 ```d2
 # specified include list:
+
 # files:
 sample.build."junk.cpp"
 sample.external."skip.cpp"
@@ -480,6 +502,7 @@ sample.src."main.cpp" -> sample.src.lib."public.hpp"
 sample.src.app."app.cpp" -> sample.src.app."app.hpp"
 
 # forbidden:
+
 # unresolved:
 sample.build."nothing.hpp".class: unresolved
 sample.build."junk.cpp" -> sample.build."nothing.hpp": {class: unresolved}

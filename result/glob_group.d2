@@ -1,3 +1,5 @@
+# CppDepScan sample -e sample/build -e sample/src/nonexistent.h -I sample/include -g 'sample/**/*.hpp' -o result/glob_group.d2
+
 classes: {
   forbidden: {
     style: {
@@ -7,13 +9,13 @@ classes: {
   unspecified: {
     style: {
       stroke: "orange"
-	  fill: "orange"
+      fill: "orange"
     }
   }
   unresolved: {
     style: {
       stroke: "gray"
-	  fill: "gray"
+      fill: "gray"
     }
   }
 }

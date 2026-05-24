@@ -27,6 +27,8 @@ struct Config
 	// automatically filled
 	std::vector<std::string> stdResolutionIncludePathList;
 
+	std::vector<std::string> commandLine;
+
 	bool bKeepStdInOutput = false;	   // default: false
 	bool bUseJsonForStdOutput = false; // default: D2 lang
 	bool bBrotherLinks = false;		   // default: false
@@ -43,6 +45,7 @@ struct Config
 
 	bool parseArgs(size_t argc, char* argv[])
 	{
+		commandLine.assign(argv, argv + argc);
 		std::vector<std::string> argList(argc);
 		for (size_t i = 0; i < argc; ++i) argList[i] = utils::str::toLower(utils::str::removeQuotes(argv[i]));
 		for (size_t i = 1; i < argc; ++i)

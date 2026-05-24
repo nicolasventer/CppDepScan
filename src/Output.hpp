@@ -39,6 +39,8 @@ struct Output
 	// unspecified origin -> UnspecifiedDetectedIncludes
 	std::map<std::string, UnspecifiedDetectedIncludes> unspecifiedIncludesMap;
 
+	std::vector<std::string> commandLine;
+
 	bool hasUnresolved = false;
 	bool hasForbidden = false;
 
@@ -67,7 +69,8 @@ inline std::vector<std::string> getSegmentList(
 	return sourceGroupGlob != nullptr ? sourceGroupGlob->getSegmentList() : utils::file::toSegmentList(sourcePath);
 }
 
-inline Output::Output(const Config& config, const ResolutionOutput& resolution, const SourceToHeaderMap& sourceToHeaderMap)
+inline Output::Output(const Config& config, const ResolutionOutput& resolution, const SourceToHeaderMap& sourceToHeaderMap) :
+	commandLine(config.commandLine)
 {
 	for (const auto& [sourcePath, detectedIncludes] : resolution.specifiedIncludesMap)
 	{

@@ -1,3 +1,5 @@
+# CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app -o result/allowed.d2
+
 classes: {
   forbidden: {
     style: {
@@ -7,13 +9,13 @@ classes: {
   unspecified: {
     style: {
       stroke: "orange"
-	  fill: "orange"
+      fill: "orange"
     }
   }
   unresolved: {
     style: {
       stroke: "gray"
-	  fill: "gray"
+      fill: "gray"
     }
   }
 }
