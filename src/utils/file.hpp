@@ -18,24 +18,6 @@ namespace utils::file
 		return segmentList;
 	}
 
-	inline bool isHeaderFile(const fs::path& path)
-	{
-		static constexpr auto HEADER_EXTENSION_LIST = {".h", ".hpp", ".hxx", ".hh"};
-		for (const auto* headerExtension : HEADER_EXTENSION_LIST)
-			if (path.extension() == headerExtension) return true;
-		return false;
-	}
-
-	inline bool isSourceFile(const fs::path& path)
-	{
-		static constexpr auto SOURCE_EXTENSION_LIST = {".c", ".cc", ".cpp", ".cxx"};
-		for (const auto* sourceExtension : SOURCE_EXTENSION_LIST)
-			if (path.extension() == sourceExtension) return true;
-		return false;
-	}
-
-	inline bool isCppFile(const fs::path& path) { return isSourceFile(path) || isHeaderFile(path); }
-
 	inline std::string pathToDotted(const fs::path& p)
 	{
 		std::ostringstream oss;

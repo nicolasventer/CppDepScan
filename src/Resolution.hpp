@@ -10,6 +10,8 @@
 #include <string>
 #include <vector>
 
+namespace fs = std::filesystem;
+
 class Resolution
 {
 public:
@@ -27,13 +29,13 @@ public:
 
 private:
 	static void handleGroupSourceHeader(
-		const fs::path& resolvedModulePath, const FileInfo& fileInfo, SourceToHeaderMap& sourceToHeaderMap)
+		const Config& config, const fs::path& resolvedModulePath, const FileInfo& fileInfo, SourceToHeaderMap& sourceToHeaderMap)
 	{
 		const auto& f = fileInfo; // shortcut
 
-		if (!utils::file::isSourceFile(*f.importerPath)) return;
+		if (!config.languageImpl->isSourceFile(*f.importerPath)) return;
 		// current file is a source file
-		if (!utils::file::isHeaderFile(resolvedModulePath)) return;
+		if (!config.languageImpl->isHeaderFile(resolvedModulePath)) return;
 		// resolved module is a header file
 		const auto importerFileName = f.importerPath->filename().replace_extension("").string();
 		const auto resolvedModuleFileName = resolvedModulePath.filename().replace_extension("").string();
@@ -52,7 +54,7 @@ private:
 	{
 		const auto& f = fileInfo; // shortcut
 
-		handleGroupSourceHeader(resolvedModulePath, f, sourceToHeaderMap);
+		handleGroupSourceHeader(config, resolvedModulePath, f, sourceToHeaderMap);
 
 		auto resolvedModuleSegmentList = utils::file::toSegmentList(resolvedModulePath);
 
@@ -62,7 +64,6 @@ private:
 			= !isForceIncluded
 		   && Glob::getGlobThatMatchesSegmentList(resolvedModuleSegmentList, config.excludeScanGlobList) != nullptr;
 		if (isExcluded) return;
-		// resolution not excluded
 
 		const bool isAllowed = f.allowedToList == nullptr
 							|| Glob::getGlobThatMatchesSegmentList(resolvedModuleSegmentList, *f.allowedToList) != nullptr;

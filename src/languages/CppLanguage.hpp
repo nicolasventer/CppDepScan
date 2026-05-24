@@ -1,5 +1,7 @@
 #pragma once
 
+#include "ILanguage.hpp"
+#include "utils/str.hpp"
 #include <array>
 #include <cstddef>
 #include <cstdio>
@@ -8,6 +10,7 @@
 #include <iostream>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #ifdef _WIN32
@@ -15,11 +18,12 @@
 #define pclose _pclose
 #endif
 
-namespace utils::compiler
-{
-	namespace fs = std::filesystem;
+namespace fs = std::filesystem;
 
-	inline std::vector<std::string> getStdIncludePathList()
+class CppLanguage : public ILanguage
+{
+public:
+	[[nodiscard]] std::vector<std::string> getStdIncludePathList() const override
 	{
 		std::vector<std::string> pathList;
 
@@ -67,7 +71,6 @@ namespace utils::compiler
 
 		while (std::getline(iss, line))
 		{
-			// Paths are indented with spaces
 			size_t i = 0;
 			while (i < line.size() && (line[i] == ' ' || line[i] == '\t')) ++i;
 			if (i < line.size())
@@ -79,4 +82,34 @@ namespace utils::compiler
 
 		return pathList;
 	}
-} // namespace utils::compiler
+
+	[[nodiscard]] bool isHeaderFile(const fs::path& path) const override
+	{
+		static constexpr auto HEADER_EXTENSION_LIST = {".h", ".hpp", ".hxx", ".hh"};
+		for (const auto* headerExtension : HEADER_EXTENSION_LIST)
+			if (path.extension() == headerExtension) return true;
+		return false;
+	}
+
+	[[nodiscard]] bool isSourceFile(const fs::path& path) const override
+	{
+		static constexpr auto SOURCE_EXTENSION_LIST = {".c", ".cc", ".cpp", ".cxx"};
+		for (const auto* sourceExtension : SOURCE_EXTENSION_LIST)
+			if (path.extension() == sourceExtension) return true;
+		return false;
+	}
+
+	[[nodiscard]] bool tryParseImportLine(const std::string& line, std::string& detectedModuleStr) const override
+	{
+		std::string_view substr;
+		if (!utils::str::bStartWith(line, "#include ", &substr)) return false;
+
+		const auto startPos = substr.find_first_of("\"<");
+		if (startPos == std::string_view::npos) return false;
+		const auto endPos = substr.find_first_of("\">", startPos + 1);
+		if (endPos == std::string_view::npos) return false;
+
+		detectedModuleStr = std::string(substr.substr(startPos + 1, endPos - startPos - 1));
+		return true;
+	}
+};

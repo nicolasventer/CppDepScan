@@ -9,7 +9,8 @@ CompileFlags:
       -Wswitch-enum
       -Wnull-dereference
       -Wno-gnu-zero-variadic-macro-arguments
-      -Wno-c2y-extensions,
+      -Wno-c2y-extensions
+      -Isrc,
     ]
 Diagnostics:
   UnusedIncludes: Strict

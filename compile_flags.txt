@@ -10,3 +10,4 @@
 -Wnull-dereference
 -Wno-gnu-zero-variadic-macro-arguments
 -Wno-c2y-extensions
+-Isrc

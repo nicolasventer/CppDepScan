@@ -1,13 +1,15 @@
 #pragma once
 
 #include "Glob.hpp"
-#include "utils/compiler.hpp"
+#include "ILanguage.hpp"
+#include "LanguageFactory.hpp"
 #include "utils/file.hpp"
 #include "utils/str.hpp"
 #include <cstddef>
 #include <filesystem>
 #include <iostream>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -28,12 +30,15 @@ struct Config
 	std::vector<std::string> stdResolutionIncludePathList;
 
 	std::vector<std::string> commandLine;
+	std::string language = "cpp";
 
 	bool bKeepStdInOutput = false;	   // default: false
 	bool bUseJsonForStdOutput = false; // default: D2 lang
 	bool bBrotherLinks = false;		   // default: false
 	bool bGroupSourceHeader = false;   // default: false
 	bool bHelp = false;
+
+	std::shared_ptr<ILanguage> languageImpl;
 
 	[[nodiscard]] const std::vector<Glob>* getAllowedToList(const fs::path& importerPath) const
 	{
@@ -97,6 +102,10 @@ struct Config
 				// if (path.back() == '/') path.pop_back(); // trailing slash must be preserved
 				groupGlobList.emplace_back(path);
 			}
+			else if (a == "--lang" && i + 1 < argc)
+			{
+				language = argList[++i];
+			}
 			else if (a == "-h" || a == "--help")
 			{
 				bHelp = true;
@@ -114,7 +123,13 @@ struct Config
 			std::cerr << "Error: no scan paths provided\n";
 			return false;
 		}
-		stdResolutionIncludePathList = utils::compiler::getStdIncludePathList();
+		languageImpl = createLanguage(language);
+		if (languageImpl == nullptr)
+		{
+			std::cerr << "Unknown or unsupported language: " << language << "\n";
+			return false;
+		}
+		stdResolutionIncludePathList = languageImpl->getStdIncludePathList();
 		return true;
 	}
 
@@ -138,7 +153,7 @@ private:
 	{
 		if (fs::is_regular_file(scanPath))
 		{
-			if (!utils::file::isCppFile(scanPath)) return;
+			if (!languageImpl->isSourceFile(scanPath) && !languageImpl->isHeaderFile(scanPath)) return;
 			if (!scanGlob.bMatch(scanPathSegmentList)) return;
 			const bool isForceIncluded
 				= Glob::getGlobThatMatchesSegmentList(scanPathSegmentList, forceIncludeScanGlobList) != nullptr;

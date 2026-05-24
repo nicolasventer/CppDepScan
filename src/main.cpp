@@ -14,7 +14,6 @@
 #include <iostream>
 #include <ostream>
 #include <string>
-#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -227,17 +226,10 @@ static Output getOutput(const Config& config)
 
 		std::ifstream ifs(importerPathList[i]);
 		std::string line;
+		std::string detectedModuleStr;
 		while (std::getline(ifs, line))
 		{
-			std::string_view substr;
-			if (!utils::str::bStartWith(line, "#include ", &substr)) continue;
-
-			// module detected
-
-			auto startPos = substr.find_first_of("\"<");
-			if (startPos == std::string::npos) continue;
-			auto endPos = substr.find_first_of("\">", startPos + 1);
-			const std::string detectedModuleStr = static_cast<std::string>(substr.substr(startPos + 1, endPos - startPos - 1));
+			if (!config.languageImpl->tryParseImportLine(line, detectedModuleStr)) continue;
 
 			Resolution::handleResolution(detectedModuleStr, config, fileInfo, modules, sourceToHeaderMap);
 		}
@@ -274,6 +266,9 @@ static void usage(const char* prog)
 		<< "  --brother-links              Make links always between elements in the same folder (default: false)\n"
 		<< "  --group-source-header        Group source with its corresponding header file (default: false)\n"
 		<< "  -g, --group <glob>           Gather files by group glob; may be repeated\n"
+		<< "\n"
+		<< "Language:\n"
+		<< "  --lang <lang>                Language to scan (cpp, typescript; default: cpp)\n"
 		<< "\n"
 		<< "Glob syntax:\n"
 		<< "  '*'  matches within one path segment\n"
