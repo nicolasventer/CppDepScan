@@ -30,16 +30,25 @@ struct DetectedIncludes
 // same as DetectedIncludes, but since origin is unspecified, resolved includes are allowed
 using UnspecifiedDetectedIncludes = DetectedIncludes;
 
+struct AllowedIncludes
+{
+	std::string fileName;
+	std::string from;
+	const std::vector<Glob>* toList = nullptr;
+};
+
 struct Output
 {
 	Output(const Config& config, const ResolutionOutput& resolution, const SourceToHeaderMap& sourceToHeaderMap);
+
+	std::vector<std::string> commandLine;
 
 	// specified origin -> DetectedIncludes
 	std::map<std::string, DetectedIncludes> specifiedIncludesMap;
 	// unspecified origin -> UnspecifiedDetectedIncludes
 	std::map<std::string, UnspecifiedDetectedIncludes> unspecifiedIncludesMap;
-
-	std::vector<std::string> commandLine;
+	// origin with forbidden includes -> AllowedIncludes (origin's group and its allowed includes)
+	std::map<std::string, AllowedIncludes> allowedIncludesMap;
 
 	bool hasUnresolved = false;
 	bool hasForbidden = false;
@@ -98,6 +107,13 @@ inline Output::Output(const Config& config, const ResolutionOutput& resolution, 
 			auto& cppIncludes = this->getIncludes(true, sourceDottedPath);
 			const auto includeDottedPath = utils::file::pathToDotted(includePath);
 			cppIncludes.forbiddenSet.insert(includeDottedPath);
+			auto it = this->allowedIncludesMap.find(sourceDottedPath);
+			if (it == this->allowedIncludesMap.end())
+			{
+				this->allowedIncludesMap[sourceDottedPath] = AllowedIncludes{.fileName = sourcePath.filename().string(),
+					.from = config.getAllowedToGlob(sourcePath)->getPattern(),
+					.toList = config.getAllowedToList(sourcePath)};
+			}
 		}
 		for (const auto& includePath : detectedIncludes.unresolvedSet)
 		{

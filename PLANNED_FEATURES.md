@@ -2,24 +2,30 @@
 
 ### Allowed rules (`-A`, `--allowed`)
 
-- Change option usage to: `-A<from>=<to_1>,<to_2>,...`
 - Add support of `$folder` in `-A` / `--allowed` that corresponds to the folder of the source (useful when the source is defined with a glob)
 
-### Output formats
+### Forbidden behavior
 
-- Add option `-stdout=<format_1>,<format_2>,...` (supported formats: `d2`, `json`; default: `d2`)
-- Add option `-stderr` (same values as `-stdout`)
-- Maybe add output format `csv`
+- Add option `forceForbidden`, i.e. -A <from> !<to>
+
+### Text format error
+
+- Add option `-stderr`
+
+example:
+
+```
+3 errors:
+- unspecified file: 'sample/src/legacy.c'
+- unresolved include: 'sample/src/main.cpp' failed to include 'nonexistent.h'
+- forbidden includes: 'sample/src/main.cpp' cannot include 'sample/include/extra.hpp', it can only include 'sample/src'
+```
 
 ### Config file support
 
 - Add support for config files: `.config.json` and `.config.d2` (default config path is read automatically, but can be specified with `-c`, `--config`)
 - Note: command line arguments and config files are additive
 - Also support dumping the effective command line with `-o myCmd.config.json` (extension can be `.config.json` or `.config.d2`)
-
-### Forbidden behavior
-
-- Maybe add option `forceForbidden`, i.e. -A<from>=!<to>
 
 ### Command override
 

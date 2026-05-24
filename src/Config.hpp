@@ -43,6 +43,14 @@ struct Config
 		return nullptr;
 	}
 
+	[[nodiscard]] const Glob* getAllowedToGlob(const fs::path& cppPath) const
+	{
+		const auto segmentList = utils::file::toSegmentList(cppPath);
+		for (const auto& [from, index] : allowedIncludeIndexMap)
+			if (from.bMatch(segmentList)) return &from;
+		return nullptr;
+	}
+
 	bool parseArgs(size_t argc, char* argv[])
 	{
 		commandLine.assign(argv, argv + argc);

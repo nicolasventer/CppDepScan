@@ -46,7 +46,7 @@ vars: {
 
 # files:
 sample.src."legacy.c"
-sample.src."main.cpp"
+sample.src."main.cpp": main.cpp {tooltip: part of "sample/src/main.cpp", can include: "sample/src/app", "sample/include"}
 
 # allowed:
 sample.src."legacy.c" -> sample.src.app."app.hpp"

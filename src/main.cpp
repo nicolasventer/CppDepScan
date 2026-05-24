@@ -54,8 +54,12 @@ template <> OStreamAdapter toJsonOutput<Output>(const std::string& indent, const
 		{
 			using namespace utils::json;
 
-			auto members = {std::make_pair("specifiedIncludeMap", &value.specifiedIncludesMap),
-				{"unspecifiedIncludeMap", &value.unspecifiedIncludesMap}};
+			auto members = {
+				// std::make_pair("commandLine", &value.commandLine), // TODO: add commandLine to JSON output
+				std::make_pair("specifiedIncludeMap", &value.specifiedIncludesMap),
+				std::make_pair("unspecifiedIncludeMap", &value.unspecifiedIncludesMap),
+				// std::make_pair("allowedIncludesMap", &value.allowedIncludesMap), // TODO: add allowedIncludesMap to JSON output
+			};
 
 			os << toJsonObject(indent,
 				members,
@@ -104,6 +108,7 @@ template <> OStreamAdapter toD2Output<Output>(const Output& value)
 		{
 			const auto& specifiedIncludeMap = value.specifiedIncludesMap;
 			const auto& unspecifiedIncludeMap = value.unspecifiedIncludesMap;
+			const auto& allowedIncludesMap = value.allowedIncludesMap;
 			os << "#";
 			for (const auto& arg : value.commandLine) os << " " << arg;
 			os << R"(
@@ -154,7 +159,30 @@ vars: {
 			{
 				os << "\n# specified include list:\n";
 				os << "\n# files:\n";
-				for (const auto& [from, _] : specifiedIncludeMap) os << from << "\n";
+				for (const auto& [from, _] : specifiedIncludeMap)
+				{
+					os << from;
+					auto it = allowedIncludesMap.find(from);
+					if (it != allowedIncludesMap.end())
+					{
+						os << ": " << it->second.fileName << " {tooltip: part of \"" << it->second.from << "\", can include: ";
+						auto listIt = it->second.toList->begin();
+						auto listItEnd = it->second.toList->end();
+						if (listIt == listItEnd) os << "None";
+						else
+						{
+							os << "\"" << listIt->getPattern() << "\"";
+							++listIt;
+							while (listIt != listItEnd)
+							{
+								os << ", \"" << listIt->getPattern() << "\"";
+								++listIt;
+							}
+						}
+						os << "}";
+					}
+					os << "\n";
+				}
 				os << "\n# allowed:\n";
 				for (const auto& [from, include] : specifiedIncludeMap)
 					os << toD2Output(include, from, EDetectedIncludeStatus::Allowed);

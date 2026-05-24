@@ -12,7 +12,7 @@
 class Glob
 {
 public:
-	explicit Glob(const std::string& pattern)
+	explicit Glob(const std::string& pattern) : pattern(pattern)
 	{
 		size_t lastPos = 0;
 		for (size_t i = 0; i < pattern.size(); ++i)
@@ -46,6 +46,8 @@ public:
 		}
 		bSuffix |= pattern.back() != '*'; // make the match not exact if the last character is not '*'
 	}
+
+	[[nodiscard]] const std::string& getPattern() const { return pattern; }
 
 	[[nodiscard]] bool bMatch(const std::vector<std::string>& candidateSegments) const
 	{
@@ -166,6 +168,7 @@ private:
 		bool bSuffix = false;
 	};
 
+	std::string pattern;
 	std::vector<GlobSegment> prefixGlobSegmentList;
 	std::vector<GlobSegment> suffixGlobSegmentList;
 	std::vector<std::string> segmentList;
