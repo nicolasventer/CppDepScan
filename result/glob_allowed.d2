@@ -42,7 +42,7 @@ vars: {
   }
 }
 
-# specified include list:
+# specified importer list:
 
 # files:
 sample.src."legacy.c"
@@ -61,7 +61,7 @@ sample.src."main.cpp" -> sample.src.lib."public.hpp": {class: forbidden}
 sample.src."nonexistent.h".class: unresolved
 sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 
-# unspecified include list:
+# unspecified importer list:
 
 # files:
 sample.src.app."app.cpp".class: unspecified

@@ -4,25 +4,25 @@
 #include <map>
 #include <set>
 
-struct ResolutionDetectedIncludes
+struct ResolutionDetectedModules
 {
 	std::set<std::filesystem::path> allowedSet;
 	std::set<std::filesystem::path> forbiddenSet;
 	std::set<std::filesystem::path> unresolvedSet;
 };
 
-// same as ResolutionDetectedIncludes, but since origin is unspecified, resolved includes are allowed
-using ResolutionUnspecifiedDetectedIncludes = ResolutionDetectedIncludes;
+// same as ResolutionDetectedModules, but since importer is unspecified, resolved modules are allowed
+using ResolutionUnspecifiedDetectedModules = ResolutionDetectedModules;
 
 struct ResolutionOutput
 {
-	// specified origin -> ResolutionDetectedIncludes
-	std::map<std::filesystem::path, ResolutionDetectedIncludes> specifiedIncludesMap;
-	// unspecified origin -> ResolutionUnspecifiedDetectedIncludes
-	std::map<std::filesystem::path, ResolutionUnspecifiedDetectedIncludes> unspecifiedIncludesMap;
+	// specified importer -> ResolutionDetectedModules
+	std::map<std::filesystem::path, ResolutionDetectedModules> specifiedImportersMap;
+	// unspecified importer -> ResolutionUnspecifiedDetectedModules
+	std::map<std::filesystem::path, ResolutionUnspecifiedDetectedModules> unspecifiedImportersMap;
 
-	[[nodiscard]] auto& getIncludes(bool isSpecified, const std::filesystem::path& path)
+	[[nodiscard]] auto& getModules(bool isSpecified, const std::filesystem::path& path)
 	{
-		return isSpecified ? specifiedIncludesMap[path] : unspecifiedIncludesMap[path];
+		return isSpecified ? specifiedImportersMap[path] : unspecifiedImportersMap[path];
 	}
 };

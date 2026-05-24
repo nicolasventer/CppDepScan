@@ -10,14 +10,14 @@ namespace fs = std::filesystem;
 
 struct FileInfo
 {
-	FileInfo(const fs::path& cppPath, const Config& config) :
-		cppPath(&cppPath), allowedToList(config.getAllowedToList(cppPath)),
-		groupGlob(Glob::getGlobThatMatchesSegmentList(utils::file::toSegmentList(cppPath), config.groupGlobList)),
+	FileInfo(const fs::path& importerPath, const Config& config) :
+		importerPath(&importerPath), allowedToList(config.getAllowedToList(importerPath)),
+		groupGlob(Glob::getGlobThatMatchesSegmentList(utils::file::toSegmentList(importerPath), config.groupGlobList)),
 		isSpecified(config.allowedIncludeIndexMap.empty() || allowedToList != nullptr)
 	{
 	}
 
-	const fs::path* cppPath; // cannot be nullptr
+	const fs::path* importerPath; // cannot be nullptr
 
 	const std::vector<Glob>* allowedToList; // can be nullptr
 	const Glob* groupGlob;					// can be nullptr

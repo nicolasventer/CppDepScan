@@ -13,24 +13,24 @@
 #include <string>
 #include <vector>
 
-enum class EDetectedIncludeStatus : uint8_t
+enum class EDetectedModuleStatus : uint8_t
 {
 	Allowed,
 	Forbidden,
 	Unresolved,
 };
 
-struct DetectedIncludes
+struct DetectedModules
 {
 	std::set<std::string> allowedSet;
 	std::set<std::string> forbiddenSet;
 	std::set<std::string> unresolvedSet;
 };
 
-// same as DetectedIncludes, but since origin is unspecified, resolved includes are allowed
-using UnspecifiedDetectedIncludes = DetectedIncludes;
+// same as DetectedModules, but since importer is unspecified, resolved modules are allowed
+using UnspecifiedDetectedModules = DetectedModules;
 
-struct AllowedIncludes
+struct ImporterAllowInfo
 {
 	std::string fileName;
 	std::string from;
@@ -43,19 +43,19 @@ struct Output
 
 	std::vector<std::string> commandLine;
 
-	// specified origin -> DetectedIncludes
-	std::map<std::string, DetectedIncludes> specifiedIncludesMap;
-	// unspecified origin -> UnspecifiedDetectedIncludes
-	std::map<std::string, UnspecifiedDetectedIncludes> unspecifiedIncludesMap;
-	// origin with forbidden includes -> AllowedIncludes (origin's group and its allowed includes)
-	std::map<std::string, AllowedIncludes> allowedIncludesMap;
+	// specified importer -> DetectedModules
+	std::map<std::string, DetectedModules> specifiedModulesMap;
+	// unspecified importer -> UnspecifiedDetectedModules
+	std::map<std::string, UnspecifiedDetectedModules> unspecifiedModulesMap;
+	// importer with forbidden modules -> ImporterAllowInfo (importer's group and its allowed modules)
+	std::map<std::string, ImporterAllowInfo> importerAllowInfoMap;
 
 	bool hasUnresolved = false;
 	bool hasForbidden = false;
 
-	auto& getIncludes(bool isSpecified, const std::string& dottedPath)
+	auto& getModules(bool isSpecified, const std::string& dottedPath)
 	{
-		return isSpecified ? specifiedIncludesMap[dottedPath] : unspecifiedIncludesMap[dottedPath];
+		return isSpecified ? specifiedModulesMap[dottedPath] : unspecifiedModulesMap[dottedPath];
 	}
 };
 
@@ -81,56 +81,56 @@ inline std::vector<std::string> getSegmentList(
 inline Output::Output(const Config& config, const ResolutionOutput& resolution, const SourceToHeaderMap& sourceToHeaderMap) :
 	commandLine(config.commandLine)
 {
-	for (const auto& [sourcePath, detectedIncludes] : resolution.specifiedIncludesMap)
+	for (const auto& [importerPath, detectedModules] : resolution.specifiedImportersMap)
 	{
-		const auto usedSourceSegmentList = getSegmentList(sourcePath, config, sourceToHeaderMap);
+		const auto usedSourceSegmentList = getSegmentList(importerPath, config, sourceToHeaderMap);
 		const auto usedSourceDottedPath = utils::segment_list::toDotted(usedSourceSegmentList, usedSourceSegmentList.size());
-		auto& usedIncludes = this->getIncludes(true, usedSourceDottedPath);
-		for (const auto& includePath : detectedIncludes.allowedSet)
+		auto& usedModules = this->getModules(true, usedSourceDottedPath);
+		for (const auto& modulePath : detectedModules.allowedSet)
 		{
-			const auto includeSegmentList = getSegmentList(includePath, config, sourceToHeaderMap);
-			const auto includeDottedPath = utils::segment_list::toDotted(includeSegmentList, includeSegmentList.size());
-			if (includeDottedPath == usedSourceDottedPath) continue;
+			const auto moduleSegmentList = getSegmentList(modulePath, config, sourceToHeaderMap);
+			const auto moduleDottedPath = utils::segment_list::toDotted(moduleSegmentList, moduleSegmentList.size());
+			if (moduleDottedPath == usedSourceDottedPath) continue;
 			if (config.bBrotherLinks)
 			{
-				const auto commonLength = utils::segment_list::commonLength(usedSourceSegmentList, includeSegmentList);
-				const auto sourceBrotherDottedPath = utils::segment_list::toDotted(usedSourceSegmentList, commonLength + 1);
-				const auto includeBrotherDottedPath = utils::segment_list::toDotted(includeSegmentList, commonLength + 1);
-				this->getIncludes(true, sourceBrotherDottedPath).allowedSet.insert(includeBrotherDottedPath);
+				const auto commonLength = utils::segment_list::commonLength(usedSourceSegmentList, moduleSegmentList);
+				const auto importerBrotherDottedPath = utils::segment_list::toDotted(usedSourceSegmentList, commonLength + 1);
+				const auto moduleBrotherDottedPath = utils::segment_list::toDotted(moduleSegmentList, commonLength + 1);
+				this->getModules(true, importerBrotherDottedPath).allowedSet.insert(moduleBrotherDottedPath);
 			}
-			else usedIncludes.allowedSet.insert(includeDottedPath);
+			else usedModules.allowedSet.insert(moduleDottedPath);
 		}
-		const auto sourceDottedPath = utils::file::pathToDotted(sourcePath);
-		for (const auto& includePath : detectedIncludes.forbiddenSet)
+		const auto importerDottedPath = utils::file::pathToDotted(importerPath);
+		for (const auto& modulePath : detectedModules.forbiddenSet)
 		{
 			this->hasForbidden = true;
-			auto& cppIncludes = this->getIncludes(true, sourceDottedPath);
-			const auto includeDottedPath = utils::file::pathToDotted(includePath);
-			cppIncludes.forbiddenSet.insert(includeDottedPath);
-			auto it = this->allowedIncludesMap.find(sourceDottedPath);
-			if (it == this->allowedIncludesMap.end())
+			auto& modules = this->getModules(true, importerDottedPath);
+			const auto moduleDottedPath = utils::file::pathToDotted(modulePath);
+			modules.forbiddenSet.insert(moduleDottedPath);
+			auto it = this->importerAllowInfoMap.find(importerDottedPath);
+			if (it == this->importerAllowInfoMap.end())
 			{
-				this->allowedIncludesMap[sourceDottedPath] = AllowedIncludes{.fileName = sourcePath.filename().string(),
-					.from = config.getAllowedToGlob(sourcePath)->getPattern(),
-					.toList = config.getAllowedToList(sourcePath)};
+				this->importerAllowInfoMap[importerDottedPath] = ImporterAllowInfo{.fileName = importerPath.filename().string(),
+					.from = config.getAllowedToGlob(importerPath)->getPattern(),
+					.toList = config.getAllowedToList(importerPath)};
 			}
 		}
-		for (const auto& includePath : detectedIncludes.unresolvedSet)
+		for (const auto& modulePath : detectedModules.unresolvedSet)
 		{
 			this->hasUnresolved = true;
-			auto& cppIncludes = this->getIncludes(true, sourceDottedPath);
-			const auto includeDottedPath = utils::file::pathToDotted(includePath);
-			cppIncludes.unresolvedSet.insert(includeDottedPath);
+			auto& modules = this->getModules(true, importerDottedPath);
+			const auto moduleDottedPath = utils::file::pathToDotted(modulePath);
+			modules.unresolvedSet.insert(moduleDottedPath);
 		}
 	}
-	for (const auto& [sourcePath, detectedIncludes] : resolution.unspecifiedIncludesMap)
+	for (const auto& [importerPath, detectedModules] : resolution.unspecifiedImportersMap)
 	{
-		const auto sourceDottedPath = utils::file::pathToDotted(sourcePath);
-		auto& cppIncludes = this->getIncludes(false, sourceDottedPath);
-		for (const auto& includePath : detectedIncludes.allowedSet)
+		const auto importerDottedPath = utils::file::pathToDotted(importerPath);
+		auto& modules = this->getModules(false, importerDottedPath);
+		for (const auto& modulePath : detectedModules.allowedSet)
 		{
-			const auto includeDottedPath = utils::file::pathToDotted(includePath);
-			cppIncludes.allowedSet.insert(includeDottedPath);
+			const auto moduleDottedPath = utils::file::pathToDotted(modulePath);
+			modules.allowedSet.insert(moduleDottedPath);
 		}
 	}
 }

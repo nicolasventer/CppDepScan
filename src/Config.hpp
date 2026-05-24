@@ -35,17 +35,17 @@ struct Config
 	bool bGroupSourceHeader = false;   // default: false
 	bool bHelp = false;
 
-	[[nodiscard]] const std::vector<Glob>* getAllowedToList(const fs::path& cppPath) const
+	[[nodiscard]] const std::vector<Glob>* getAllowedToList(const fs::path& importerPath) const
 	{
-		const auto segmentList = utils::file::toSegmentList(cppPath);
+		const auto segmentList = utils::file::toSegmentList(importerPath);
 		for (const auto& [from, index] : allowedIncludeIndexMap)
 			if (from.bMatch(segmentList)) return &allowedIncludeGlobListList[index];
 		return nullptr;
 	}
 
-	[[nodiscard]] const Glob* getAllowedToGlob(const fs::path& cppPath) const
+	[[nodiscard]] const Glob* getAllowedToGlob(const fs::path& importerPath) const
 	{
-		const auto segmentList = utils::file::toSegmentList(cppPath);
+		const auto segmentList = utils::file::toSegmentList(importerPath);
 		for (const auto& [from, index] : allowedIncludeIndexMap)
 			if (from.bMatch(segmentList)) return &from;
 		return nullptr;
@@ -118,23 +118,23 @@ struct Config
 		return true;
 	}
 
-	[[nodiscard]] std::vector<fs::path> getCppPathList() const
+	[[nodiscard]] std::vector<fs::path> getImporterPathList() const
 	{
-		std::vector<fs::path> cppPathList;
+		std::vector<fs::path> importerPathList;
 		for (const auto& scanGlob : scanGlobList)
 		{
 			auto rootPath = scanGlob.toRootPath();
 			auto scanPathSegmentList = utils::file::toSegmentList(rootPath);
-			updateCppPathList(scanGlob, rootPath, scanPathSegmentList, cppPathList);
+			updateImporterPathList(scanGlob, rootPath, scanPathSegmentList, importerPathList);
 		}
-		return cppPathList;
+		return importerPathList;
 	}
 
 private:
-	void updateCppPathList(const Glob& scanGlob,
+	void updateImporterPathList(const Glob& scanGlob,
 		const fs::path& scanPath,
 		std::vector<std::string>& scanPathSegmentList,
-		std::vector<fs::path>& cppPathList) const
+		std::vector<fs::path>& importerPathList) const
 	{
 		if (fs::is_regular_file(scanPath))
 		{
@@ -145,14 +145,14 @@ private:
 			const bool isExcluded
 				= !isForceIncluded && Glob::getGlobThatMatchesSegmentList(scanPathSegmentList, excludeScanGlobList) != nullptr;
 			if (isExcluded) return;
-			cppPathList.push_back(scanPath);
+			importerPathList.push_back(scanPath);
 		}
 		else if (fs::is_directory(scanPath))
 		{
 			for (const auto& file : fs::directory_iterator(scanPath))
 			{
 				scanPathSegmentList.emplace_back(file.path().filename().string());
-				updateCppPathList(scanGlob, file.path(), scanPathSegmentList, cppPathList);
+				updateImporterPathList(scanGlob, file.path(), scanPathSegmentList, importerPathList);
 				scanPathSegmentList.pop_back();
 			}
 		}

@@ -2,17 +2,27 @@
 
 ## Description
 
-C++ include detection: scan globs, resolve `#include` directives, and output the include graph as JSON and/or [D2](https://d2lang.com/).
+C++ dependency scanner: scan globs, parse **importers** (C/C++ files) for `#include` directives, resolve **modules** (included headers/files), and output the dependency graph as JSON and/or [D2](https://d2lang.com/).
+
+### Terminology
+
+| Term                | Meaning                                                                                                     |
+| ------------------- | ----------------------------------------------------------------------------------------------------------- |
+| **Importer**        | A scanned file parsed for `#include` directives                                                             |
+| **Module**          | A file detected or resolved from an `#include` directive                                                    |
+| **Source / header** | C/C++ source (`.c`, `.cpp`, …) and header (`.h`, `.hpp`, …) files; used for `--group-source-header` pairing |
+
+CLI flags such as `-i` (import paths) and `-a` (allowed rules) still refer to the `#include` mechanism and dependency policy.
 
 ## Features
 
-- Scan C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`)
+- Scan C/C++ importers (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`)
 - Glob-aware path matching for scan/exclude/allowed/group rules (`*`, `**`)
-- Resolve `#include "..."` and `#include <...>` using the current folder and configurable include paths
+- Resolve `#include "..."` and `#include <...>` into modules using the current folder and configurable import paths
 - Exclude globs from scanning; force-include with `-e !<glob>`
-- Declare allowed includes (`-a`) for dependency rules
+- Declare allowed modules per importer (`-a`) for dependency rules
 - Output as **JSON** or **D2**, to files and/or stdout
-- Track allowed, forbidden, and unresolved include relationships
+- Track allowed, forbidden, and unresolved importer -> module relationships
 - Optional grouping by glob (`-g`), source/header pairing (`--group-source-header`), sibling-style links (`--brother-links`), and standard library headers in output (`--std`)
 
 ## Planned Features
@@ -75,7 +85,7 @@ vars: {
   }
 }
 
-# specified include list:
+# specified importer list:
 
 # files:
 sample.build."junk.cpp"
@@ -128,7 +138,7 @@ CppDepScan sample -e sample/build -e sample/external -o result/exclude_build_ext
 <summary>D2 output</summary>
 
 ```d2
-# specified include list:
+# specified importer list:
 
 # files:
 sample.include."extra.hpp"
@@ -177,46 +187,46 @@ CppDepScan sample -e sample/build -e sample/external -e !sample/external/keep -o
 
 </details>
 
-### Include paths (`-i`)
+### Import paths (`-i`)
 
 ```bash
-CppDepScan sample/src -i sample/include -o result/include.d2
+CppDepScan sample/src -i sample/include -o result/import.d2
 ```
 
 <details>
 <summary>Rendered image</summary>
 
-![include paths](result/include.png)
+![import paths](result/import.png)
 
 </details>
 
 ### Scan glob (`*`)
 
 ```bash
-CppDepScan 'sample/src/*' -i sample/include -o result/include_glob_scan.d2
+CppDepScan 'sample/src/*' -i sample/include -o result/import_glob_scan.d2
 ```
 
 <details>
 <summary>Rendered image</summary>
 
-![include glob scan](result/include_glob_scan.png)
+![import glob scan](result/import_glob_scan.png)
 
 </details>
 
 ### Scan glob with recursion (`**`)
 
 ```bash
-CppDepScan 'sample/src/**/*.hpp' -i sample/include -o result/include_glob_recursive_scan.d2
+CppDepScan 'sample/src/**/*.hpp' -i sample/include -o result/import_glob_recursive_scan.d2
 ```
 
 <details>
 <summary>Rendered image</summary>
 
-![include glob recursive scan](result/include_glob_recursive_scan.png)
+![import glob recursive scan](result/import_glob_recursive_scan.png)
 
 </details>
 
-### Allowed includes (`-a`, `--allowed`)
+### Allowed rules (`-a`, `--allowed`)
 
 ```bash
 CppDepScan sample/src -i sample/include -a sample/src/main.cpp sample/src/app -a sample/src/main.cpp sample/include -a sample/src/legacy.c sample/src/app -o result/allowed.d2
@@ -229,7 +239,7 @@ CppDepScan sample/src -i sample/include -a sample/src/main.cpp sample/src/app -a
 
 </details>
 
-**Note**: When at least one allowed rule is specified, all files not described by an allowed rule are considered **unspecified**. If you don't want a file to include anything, just add a rule with an invalid, empty or itself as allowed glob (e.g. `-a sample/src/legacy.c ''`).
+**Note**: When at least one allowed rule is specified, all importers not described by an allowed rule are considered **unspecified**. If you don't want an importer to import any module, add a rule with an invalid, empty, or self-referential allowed glob (e.g. `-a sample/src/legacy.c ''`).
 
 ### Grouping (`-g`, `--group`)
 
@@ -241,7 +251,7 @@ CppDepScan sample -e sample/build -e sample/external -i sample/include -g sample
 <summary>D2 output</summary>
 
 ```d2
-# specified include list:
+# specified importer list:
 
 # files:
 sample.external
@@ -288,7 +298,7 @@ CppDepScan sample/src -i sample/include --group-source-header -o result/group_so
 <summary>D2 output</summary>
 
 ```d2
-# specified include list:
+# specified importer list:
 
 # files:
 sample.src."main.cpp"
@@ -344,7 +354,7 @@ CppDepScan sample/src sample/external -i sample/include -g sample/src -g sample/
 <summary>D2 output</summary>
 
 ```d2
-# specified include list:
+# specified importer list:
 
 # files:
 sample.external
@@ -375,7 +385,7 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 ### JSON output
 
 ```bash
-CppDepScan sample/src -i sample/include -o result/include.json
+CppDepScan sample/src -i sample/include -o result/import.json
 ```
 
 <details>
@@ -383,7 +393,7 @@ CppDepScan sample/src -i sample/include -o result/include.json
 
 ```json
 {
-	"specifiedIncludeMap": {
+	"specifiedModulesMap": {
 		"sample.src.\"legacy.c\"": {
 			"allowedSet": ["sample.src.app.\"app.hpp\""],
 			"forbiddenSet": [],
@@ -408,7 +418,7 @@ CppDepScan sample/src -i sample/include -o result/include.json
 		"sample.src.lib.\"private.hpp\"": { "allowedSet": [], "forbiddenSet": [], "unresolvedSet": [] },
 		"sample.src.lib.\"public.hpp\"": { "allowedSet": [], "forbiddenSet": [], "unresolvedSet": [] }
 	},
-	"unspecifiedIncludeMap": {}
+	"unspecifiedModulesMap": {}
 }
 ```
 
@@ -416,7 +426,7 @@ CppDepScan sample/src -i sample/include -o result/include.json
 
 ### Exclude unresolved path (bad practice)
 
-Excluding a path that is only ever seen as unresolved hides the missing include from the graph.
+Excluding a path that is only ever seen as unresolved hides the missing module from the graph.
 
 ```bash
 CppDepScan sample -e sample/src/extra.hpp -o result/exclude_unresolved.d2
@@ -426,7 +436,7 @@ CppDepScan sample -e sample/src/extra.hpp -o result/exclude_unresolved.d2
 <summary>D2 output</summary>
 
 ```d2
-# specified include list:
+# specified importer list:
 
 # files:
 sample.build."junk.cpp"
@@ -469,17 +479,17 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 
 ### Exclude after resolve (good practice)
 
-Resolve with `-I` then exclude the file so the edge appears as allowed and the file is hidden from the graph.
+Resolve with `-i` then exclude the file so the edge appears as allowed and the module is hidden from the graph.
 
 ```bash
-CppDepScan sample -i sample/include -e sample/include/extra.hpp -o result/exclude_include.d2
+CppDepScan sample -i sample/include -e sample/include/extra.hpp -o result/exclude_import.d2
 ```
 
 <details>
 <summary>D2 output</summary>
 
 ```d2
-# specified include list:
+# specified importer list:
 
 # files:
 sample.build."junk.cpp"
@@ -515,13 +525,13 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 <details>
 <summary>Rendered image</summary>
 
-![exclude include](result/exclude_include.png)
+![exclude import](result/exclude_import.png)
 
 </details>
 
 ### Group ignored for forbidden, unresolved or unspecified
 
-When an include is forbidden, unresolved or unspecified, the edge is still shown from the specified file; grouping does not attach it to the group node.
+When a module is forbidden, unresolved, or unspecified, the edge is still shown from the specified importer; grouping does not attach it to the group node.
 
 ```bash
 CppDepScan sample/src -g sample/src -i sample/include -a sample/src/main.cpp sample/src -a sample/src/app sample/src/app -a sample/src/lib sample/src/lib -o result/ignored_group.d2
@@ -547,18 +557,18 @@ CppDepScan [options] <scan_glob> [scan_glob ...]
 | `-e <glob>`  | Exclude glob for scanning (folder, file, or pattern); repeat. |
 | `-e !<glob>` | Keep glob for scanning even if it lies under an exclude.      |
 
-- **Scan globs** (positional): file, directory, or glob inputs to scan for C/C++ sources (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`).
+- **Scan globs** (positional): file, directory, or glob inputs to scan for C/C++ importers (`.c`, `.cc`, `.cpp`, `.cxx`, `.h`, `.hpp`, `.hxx`, `.hh`).
 - **Exclude** (`-e`): file, directory, or glob pattern to skip during scan. Use `-e !<glob>` to force-include a glob that would otherwise be excluded.
 
 **Resolution**
 
-| Option                        | Description                                                                |
-| ----------------------------- | -------------------------------------------------------------------------- |
-| `-i <path>`                   | Add include path for resolution (folder or file); may be repeated.         |
-| `-a`, `--allowed <from> <to>` | Specify that `<from>` may include `<to>`; both are globs; may be repeated. |
+| Option                        | Description                                                               |
+| ----------------------------- | ------------------------------------------------------------------------- |
+| `-i <path>`                   | Add import path for resolution (folder or file); may be repeated.         |
+| `-a`, `--allowed <from> <to>` | Specify that `<from>` may import `<to>`; both are globs; may be repeated. |
 
-- **Include paths** (`-i`): used to resolve `#include "..."` and `#include <...>`. The current file's directory is always tried first for `"..."`.
-- **Allowed** (`-a`): declare that `<from>` may include `<to>`; both values are globs and are reflected in the dependency rules and D2/JSON output.
+- **Import paths** (`-i`): search paths used to resolve `#include "..."` and `#include <...>` into modules. The current importer's directory is always tried first for `"..."`.
+- **Allowed** (`-a`): declare that importer glob `<from>` may import module glob `<to>`; both values are globs and are reflected in the dependency rules and D2/JSON output.
 
 **Output**
 
@@ -571,9 +581,9 @@ CppDepScan [options] <scan_glob> [scan_glob ...]
 | `--std`                 | Include standard library headers in output (default: false).                                 |
 | `-g`, `--group <glob>`  | Gather files by group glob; may be repeated.                                                 |
 
-- **JSON**: `specifiedIncludeMap` — object mapping each source file (dotted path) to an object with `allowedSet`, `forbiddenSet`, `unresolvedSet`; `unspecifiedIncludeMap` — same shape (e.g. headers only).
-- **D2**: **# specified include list** / **# unspecified include list** — for each file, **# allowed:** edges `from -> to`, **# forbidden:** edges, **# unresolved:** commented-out edges for unresolved includes.
-- **Exit status**: The process exits with `EXIT_SUCCESS` only if all includes are resolved and allowed (true if no `-a` is given) and all files specified (true if no `-a` is given), else the process exits with `EXIT_FAILURE`.
+- **JSON**: `specifiedModulesMap` — object mapping each importer (dotted path) to an object with `allowedSet`, `forbiddenSet`, `unresolvedSet`; `unspecifiedModulesMap` — same shape (e.g. importers without an allowed rule).
+- **D2**: **# specified importer list** / **# unspecified importer list** — for each importer, **# allowed:** edges `importer -> module`, **# forbidden:** edges, **# unresolved:** edges for unresolved modules.
+- **Exit status**: The process exits with `EXIT_SUCCESS` only if all modules are resolved and allowed (true if no `-a` is given) and all importers are specified (true if no `-a` is given); otherwise it exits with `EXIT_FAILURE`.
 - **Glob syntax**: `*` matches within one path segment, `**` matches across segments.
   - **Note**: On Windows, **always single-quote glob patterns** in the command line (e.g., `'sample/src/*'`, `'sample/**/*.hpp'`) to prevent premature expansion or parsing errors.
 

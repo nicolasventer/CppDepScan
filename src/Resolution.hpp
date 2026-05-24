@@ -13,142 +13,142 @@
 class Resolution
 {
 public:
-	static bool handleResolution(const std::string& detectedIncludeStr,
+	static bool handleResolution(const std::string& detectedModuleStr,
 		const Config& config,
 		const FileInfo& fileInfo,
-		ResolutionDetectedIncludes& cppIncludes,
+		ResolutionDetectedModules& modules,
 		SourceToHeaderMap& sourceToHeaderMap)
 	{
-		return handleCurrentFolderResolution(detectedIncludeStr, config, fileInfo, cppIncludes, sourceToHeaderMap)
-			|| handleIncludePathListResolution(detectedIncludeStr, config, fileInfo, cppIncludes, sourceToHeaderMap)
-			|| handleStdResolution(detectedIncludeStr, config, fileInfo, cppIncludes, sourceToHeaderMap)
-			|| handleUnresolved(detectedIncludeStr, config, fileInfo, cppIncludes, sourceToHeaderMap);
+		return handleCurrentFolderResolution(detectedModuleStr, config, fileInfo, modules, sourceToHeaderMap)
+			|| handleIncludePathListResolution(detectedModuleStr, config, fileInfo, modules, sourceToHeaderMap)
+			|| handleStdResolution(detectedModuleStr, config, fileInfo, modules, sourceToHeaderMap)
+			|| handleUnresolved(detectedModuleStr, config, fileInfo, modules, sourceToHeaderMap);
 	}
 
 private:
 	static void handleGroupSourceHeader(
-		const fs::path& resolvedIncludePath, const FileInfo& fileInfo, SourceToHeaderMap& sourceToHeaderMap)
+		const fs::path& resolvedModulePath, const FileInfo& fileInfo, SourceToHeaderMap& sourceToHeaderMap)
 	{
 		const auto& f = fileInfo; // shortcut
 
-		if (!utils::file::isSourceFile(*f.cppPath)) return;
+		if (!utils::file::isSourceFile(*f.importerPath)) return;
 		// current file is a source file
-		if (!utils::file::isHeaderFile(resolvedIncludePath)) return;
-		// resolved include is a header file
-		const auto cppFileName = f.cppPath->filename().replace_extension("").string();
-		const auto resolvedIncludeFileName = resolvedIncludePath.filename().replace_extension("").string();
-		if (resolvedIncludeFileName != cppFileName) return;
-		// resolved include filename is the same as current file
-		if (sourceToHeaderMap.count(*f.cppPath) != 0) return;
+		if (!utils::file::isHeaderFile(resolvedModulePath)) return;
+		// resolved module is a header file
+		const auto importerFileName = f.importerPath->filename().replace_extension("").string();
+		const auto resolvedModuleFileName = resolvedModulePath.filename().replace_extension("").string();
+		if (resolvedModuleFileName != importerFileName) return;
+		// resolved module filename is the same as current file
+		if (sourceToHeaderMap.count(*f.importerPath) != 0) return;
 		// current file is not already mapped to a header file
-		sourceToHeaderMap[*f.cppPath] = resolvedIncludePath;
+		sourceToHeaderMap[*f.importerPath] = resolvedModulePath;
 	}
 
-	static void handleResolvedInclude(const fs::path& resolvedIncludePath,
+	static void handleResolvedModule(const fs::path& resolvedModulePath,
 		const Config& config,
 		const FileInfo& fileInfo,
-		ResolutionDetectedIncludes& cppIncludes,
+		ResolutionDetectedModules& modules,
 		SourceToHeaderMap& sourceToHeaderMap)
 	{
 		const auto& f = fileInfo; // shortcut
 
-		handleGroupSourceHeader(resolvedIncludePath, f, sourceToHeaderMap);
+		handleGroupSourceHeader(resolvedModulePath, f, sourceToHeaderMap);
 
-		auto resolvedIncludeSegmentList = utils::file::toSegmentList(resolvedIncludePath);
+		auto resolvedModuleSegmentList = utils::file::toSegmentList(resolvedModulePath);
 
 		const bool isForceIncluded
-			= Glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.forceIncludeScanGlobList) != nullptr;
+			= Glob::getGlobThatMatchesSegmentList(resolvedModuleSegmentList, config.forceIncludeScanGlobList) != nullptr;
 		const bool isExcluded
 			= !isForceIncluded
-		   && Glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.excludeScanGlobList) != nullptr;
+		   && Glob::getGlobThatMatchesSegmentList(resolvedModuleSegmentList, config.excludeScanGlobList) != nullptr;
 		if (isExcluded) return;
 		// resolution not excluded
 
 		const bool isAllowed = f.allowedToList == nullptr
-							|| Glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, *f.allowedToList) != nullptr;
-		if (isAllowed) cppIncludes.allowedSet.insert(resolvedIncludePath);
-		else cppIncludes.forbiddenSet.insert(resolvedIncludePath);
+							|| Glob::getGlobThatMatchesSegmentList(resolvedModuleSegmentList, *f.allowedToList) != nullptr;
+		if (isAllowed) modules.allowedSet.insert(resolvedModulePath);
+		else modules.forbiddenSet.insert(resolvedModulePath);
 	}
 
-	static bool handleCurrentFolderResolution(const std::string& detectedIncludeStr,
+	static bool handleCurrentFolderResolution(const std::string& detectedModuleStr,
 		const Config& config,
 		const FileInfo& fileInfo,
-		ResolutionDetectedIncludes& cppIncludes,
+		ResolutionDetectedModules& modules,
 		SourceToHeaderMap& sourceToHeaderMap)
 	{
 		const auto& f = fileInfo; // shortcut
 
-		const fs::path currentFolderIncludePath = f.cppPath->parent_path() / fs::path(detectedIncludeStr);
+		const fs::path currentFolderModulePath = f.importerPath->parent_path() / fs::path(detectedModuleStr);
 
-		if (!fs::exists(currentFolderIncludePath)) return false;
-		// include resolved
+		if (!fs::exists(currentFolderModulePath)) return false;
+		// module resolved
 
-		handleResolvedInclude(currentFolderIncludePath, config, fileInfo, cppIncludes, sourceToHeaderMap);
+		handleResolvedModule(currentFolderModulePath, config, fileInfo, modules, sourceToHeaderMap);
 		return true;
 	}
 
 	static const fs::path* getResolutionIncludePath(
-		const fs::path& detectedIncludePath, const std::vector<fs::path>& resolutionIncludePathList)
+		const fs::path& detectedModulePath, const std::vector<fs::path>& resolutionIncludePathList)
 	{
 		for (const auto& resolutionIncludePath : resolutionIncludePathList)
 		{
-			const fs::path& newIncludePath = resolutionIncludePath / detectedIncludePath;
+			const fs::path& newIncludePath = resolutionIncludePath / detectedModulePath;
 			if (fs::exists(newIncludePath)) return &resolutionIncludePath;
 		}
 		return nullptr;
 	}
 
-	// returns true if the include is resolved
-	static bool handleIncludePathListResolution(const std::string& detectedIncludeStr,
+	// returns true if the module is resolved
+	static bool handleIncludePathListResolution(const std::string& detectedModuleStr,
 		const Config& config,
 		const FileInfo& fileInfo,
-		ResolutionDetectedIncludes& cppIncludes,
+		ResolutionDetectedModules& modules,
 		SourceToHeaderMap& sourceToHeaderMap)
 	{
-		const fs::path detectedIncludePath(detectedIncludeStr);
+		const fs::path detectedModulePath(detectedModuleStr);
 
-		const auto* resolutionIncludePath = getResolutionIncludePath(detectedIncludePath, config.resolutionIncludePathList);
+		const auto* resolutionIncludePath = getResolutionIncludePath(detectedModulePath, config.resolutionIncludePathList);
 		if (resolutionIncludePath == nullptr) return false;
-		// include resolved
+		// module resolved
 
-		const fs::path resolvedIncludePath = *resolutionIncludePath / detectedIncludePath;
-		handleResolvedInclude(resolvedIncludePath, config, fileInfo, cppIncludes, sourceToHeaderMap);
+		const fs::path resolvedModulePath = *resolutionIncludePath / detectedModulePath;
+		handleResolvedModule(resolvedModulePath, config, fileInfo, modules, sourceToHeaderMap);
 		return true;
 	}
 
-	static bool handleStdResolution(const std::string& detectedIncludeStr,
+	static bool handleStdResolution(const std::string& detectedModuleStr,
 		const Config& config,
 		const FileInfo& /* fileInfo */,
-		ResolutionDetectedIncludes& cppIncludes,
+		ResolutionDetectedModules& modules,
 		SourceToHeaderMap& /* sourceToHeaderMap */)
 	{
 		for (const auto& stdIncludePath : config.stdResolutionIncludePathList)
 		{
-			const fs::path& newIncludePath = stdIncludePath / fs::path(detectedIncludeStr);
+			const fs::path& newIncludePath = stdIncludePath / fs::path(detectedModuleStr);
 			if (!fs::exists(newIncludePath)) continue;
-			// std include resolved
+			// std module resolved
 
 			if (!config.bKeepStdInOutput) return true;
 			// keep std in output
 
-			cppIncludes.allowedSet.insert(detectedIncludeStr);
+			modules.allowedSet.insert(detectedModuleStr);
 			return true;
 		}
 		return false;
 	}
 
-	static bool handleUnresolved(const std::string& detectedIncludeStr,
+	static bool handleUnresolved(const std::string& detectedModuleStr,
 		const Config& config,
 		const FileInfo& fileInfo,
-		ResolutionDetectedIncludes& cppIncludes,
+		ResolutionDetectedModules& modules,
 		SourceToHeaderMap& /* sourceToHeaderMap */)
 	{
 		const auto& f = fileInfo; // shortcut
 
 		// current folder used for better display
-		const fs::path currentFolderIncludePath = f.cppPath->parent_path() / fs::path(detectedIncludeStr);
+		const fs::path currentFolderModulePath = f.importerPath->parent_path() / fs::path(detectedModuleStr);
 
-		auto currentFolderSegmentList = utils::file::toSegmentList(currentFolderIncludePath);
+		auto currentFolderSegmentList = utils::file::toSegmentList(currentFolderModulePath);
 
 		const bool isForceIncluded
 			= Glob::getGlobThatMatchesSegmentList(currentFolderSegmentList, config.forceIncludeScanGlobList) != nullptr;
@@ -158,7 +158,7 @@ private:
 		if (isExcluded) return false;
 		// unresolved not excluded
 
-		cppIncludes.unresolvedSet.insert(currentFolderIncludePath);
+		modules.unresolvedSet.insert(currentFolderModulePath);
 		return false;
 	}
 };
