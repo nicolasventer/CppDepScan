@@ -15,6 +15,8 @@ CppDepScan sample -e sample/build -e sample/src/nonexistent.h -I sample/include 
 CppDepScan sample/src sample/external -I sample/include -g sample/src -g sample/external --std -o result/std.d2
 CppDepScan sample/src -I sample/include -o result/include.json
 CppDepScan sample/src -I sample/include --brother-links -o result/brother_links.d2
+CppDepScan sample/src -I sample/include --group-source-header -o result/group_source_header.d2
+CppDepScan sample/src -I sample/include --group-source-header --brother-links -o result/group_source_header_brother_links.d2
 
 @REM Special cases:
 
@@ -22,7 +24,7 @@ CppDepScan sample/src -I sample/include --brother-links -o result/brother_links.
 CppDepScan sample -e sample/src/extra.hpp -o result/exclude_unresolved.d2
 @REM exclude resolved path before exclude path (good practice)
 CppDepScan sample -I sample/include -e sample/include/extra.hpp -o result/exclude_include.d2
-@REM group ignored for forbidden or unresolved includes
+@REM group ignored for forbidden, unresolved or unspecified includes
 CppDepScan sample/src -g sample/src -I sample/include -A sample/src/main.cpp sample/src -A sample/src/app sample/src/app -A sample/src/lib sample/src/lib -o result/ignored_group.d2
 
 pushd result

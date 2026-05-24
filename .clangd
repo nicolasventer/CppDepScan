@@ -4,7 +4,6 @@ CompileFlags:
       -Wextra
       -Wpedantic
       -Wconversion
-      -Wpadded
       -Wshadow
       -Wsign-conversion
       -Wswitch-enum

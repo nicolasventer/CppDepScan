@@ -2,8 +2,9 @@
 #include "FileInfo.hpp"
 #include "Output.hpp"
 #include "Resolution.hpp"
+#include "ResolutionOutput.hpp"
+#include "SourceToHeaderMap.hpp"
 #include "utils/StreamAdapter.hpp"
-#include "utils/file.hpp"
 #include "utils/json.hpp"
 #include "utils/str.hpp"
 #include <cstddef>
@@ -174,23 +175,23 @@ vars: {
 
 static Output getOutput(const Config& config)
 {
-	Output result;
+	ResolutionOutput resolution;
 
 	std::vector<fs::path> cppPathList = config.getCppPathList();
 
 	std::cout << "start parsing..." << "\n";
+
+	SourceToHeaderMap sourceToHeaderMap;
+
+	std::cout << "step 1/2: resolving includes..." << "\n";
 
 	for (size_t i = 0; i < cppPathList.size(); ++i)
 	{
 		std::cout << "\r[" << (i + 1) << "/" << cppPathList.size() << "]" << std::flush;
 
 		const FileInfo fileInfo(cppPathList[i], config);
-		const auto& f = fileInfo; // shortcut
-		const auto groupOrCppDottedPath
-			= f.groupGlob != nullptr ? f.groupGlob->toDotted() : utils::file::pathToDotted(cppPathList[i]);
 
-		// ensure file/group is created even if no includes are detected
-		auto& detectedIncludes = result.getIncludes(f.isSpecified, f.isSpecified ? groupOrCppDottedPath : f.cppDottedPath);
+		auto& cppIncludes = resolution.getIncludes(fileInfo.isSpecified, cppPathList[i]);
 
 		std::ifstream ifs(cppPathList[i]);
 		std::string line;
@@ -206,13 +207,17 @@ static Output getOutput(const Config& config)
 			auto endPos = substr.find_first_of("\">", startPos + 1);
 			const std::string detectedIncludeStr = static_cast<std::string>(substr.substr(startPos + 1, endPos - startPos - 1));
 
-			Resolution::handleResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes);
+			Resolution::handleResolution(detectedIncludeStr, config, fileInfo, cppIncludes, sourceToHeaderMap);
 		}
 	}
 
+	std::cout << "\nstep 2/2: generating output..." << "\n";
+
+	Output output(config, resolution, sourceToHeaderMap);
+
 	std::cout << "\nDone\n";
 
-	return result;
+	return output;
 }
 
 static void usage(const char* prog)
@@ -235,6 +240,7 @@ static void usage(const char* prog)
 		<< "  --json                       Use JSON for stdout (default: D2)\n"
 		<< "  --std                        Include standard library headers in output (default: false)\n"
 		<< "  --brother-links              Make links always between elements in the same folder (default: false)\n"
+		<< "  --group-source-header        Group source with its corresponding header file (default: false)\n"
 		<< "  -g, --group <glob>           Gather files by group glob; may be repeated\n"
 		<< "\n"
 		<< "Glob syntax:\n"

@@ -30,6 +30,7 @@ struct Config
 	bool bKeepStdInOutput = false;	   // default: false
 	bool bUseJsonForStdOutput = false; // default: D2 lang
 	bool bBrotherLinks = false;		   // default: false
+	bool bGroupSourceHeader = false;   // default: false
 	bool bHelp = false;
 
 	[[nodiscard]] const std::vector<Glob>* getAllowedToList(const fs::path& cppPath) const
@@ -78,6 +79,7 @@ struct Config
 			else if (a == "--std") bKeepStdInOutput = true;
 			else if (a == "--json") bUseJsonForStdOutput = true;
 			else if (a == "--brother-links") bBrotherLinks = true;
+			else if (a == "--group-source-header") bGroupSourceHeader = true;
 			else if ((a == "-g" || a == "--group") && i + 1 < argc)
 			{
 				const std::string& path = argList[++i];

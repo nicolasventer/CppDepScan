@@ -3,9 +3,9 @@
 #include "Config.hpp"
 #include "FileInfo.hpp"
 #include "Glob.hpp"
-#include "Output.hpp"
+#include "ResolutionOutput.hpp"
+#include "SourceToHeaderMap.hpp"
 #include "utils/file.hpp"
-#include "utils/segment_list.hpp"
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -16,23 +16,43 @@ public:
 	static bool handleResolution(const std::string& detectedIncludeStr,
 		const Config& config,
 		const FileInfo& fileInfo,
-		Output& result,
-		DetectedIncludes& detectedIncludes)
+		ResolutionDetectedIncludes& cppIncludes,
+		SourceToHeaderMap& sourceToHeaderMap)
 	{
-		return handleCurrentFolderResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
-			|| handleIncludePathListResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
-			|| handleStdResolution(detectedIncludeStr, config, fileInfo, result, detectedIncludes)
-			|| handleUnresolved(detectedIncludeStr, config, fileInfo, result, detectedIncludes);
+		return handleCurrentFolderResolution(detectedIncludeStr, config, fileInfo, cppIncludes, sourceToHeaderMap)
+			|| handleIncludePathListResolution(detectedIncludeStr, config, fileInfo, cppIncludes, sourceToHeaderMap)
+			|| handleStdResolution(detectedIncludeStr, config, fileInfo, cppIncludes, sourceToHeaderMap)
+			|| handleUnresolved(detectedIncludeStr, config, fileInfo, cppIncludes, sourceToHeaderMap);
 	}
 
 private:
+	static void handleGroupSourceHeader(
+		const fs::path& resolvedIncludePath, const FileInfo& fileInfo, SourceToHeaderMap& sourceToHeaderMap)
+	{
+		const auto& f = fileInfo; // shortcut
+
+		if (!utils::file::isSourceFile(*f.cppPath)) return;
+		// current file is a source file
+		if (!utils::file::isHeaderFile(resolvedIncludePath)) return;
+		// resolved include is a header file
+		const auto cppFileName = f.cppPath->filename().replace_extension("").string();
+		const auto resolvedIncludeFileName = resolvedIncludePath.filename().replace_extension("").string();
+		if (resolvedIncludeFileName != cppFileName) return;
+		// resolved include filename is the same as current file
+		if (sourceToHeaderMap.count(*f.cppPath) != 0) return;
+		// current file is not already mapped to a header file
+		sourceToHeaderMap[*f.cppPath] = resolvedIncludePath;
+	}
+
 	static void handleResolvedInclude(const fs::path& resolvedIncludePath,
 		const Config& config,
 		const FileInfo& fileInfo,
-		Output& result,
-		DetectedIncludes& detectedIncludes)
+		ResolutionDetectedIncludes& cppIncludes,
+		SourceToHeaderMap& sourceToHeaderMap)
 	{
 		const auto& f = fileInfo; // shortcut
+
+		handleGroupSourceHeader(resolvedIncludePath, f, sourceToHeaderMap);
 
 		auto resolvedIncludeSegmentList = utils::file::toSegmentList(resolvedIncludePath);
 
@@ -46,42 +66,15 @@ private:
 
 		const bool isAllowed = f.allowedToList == nullptr
 							|| Glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, *f.allowedToList) != nullptr;
-		if (isAllowed)
-		{
-			// resolution allowed
-			const auto* includeGroupGlob = Glob::getGlobThatMatchesSegmentList(resolvedIncludeSegmentList, config.groupGlobList);
-			if (includeGroupGlob == f.groupGlob && includeGroupGlob != nullptr) return;
-			// resolution group different from file group
-
-			const auto dottedPath
-				= includeGroupGlob != nullptr ? includeGroupGlob->toDotted() : utils::file::pathToDotted(resolvedIncludePath);
-			if (config.bBrotherLinks)
-			{
-				const auto cppPathSegmentList
-					= includeGroupGlob != nullptr ? includeGroupGlob->getSegmentList() : utils::file::toSegmentList(*f.cppPath);
-
-				const auto commonLength = utils::file::commonLength(cppPathSegmentList, resolvedIncludeSegmentList);
-				const auto commonCppDottedPath = utils::segment_list::toDotted(cppPathSegmentList, commonLength + 1);
-				const auto resolvedDottedPath = utils::segment_list::toDotted(resolvedIncludeSegmentList, commonLength + 1);
-				auto& commonCppIncludes = result.getIncludes(f.isSpecified, commonCppDottedPath);
-				commonCppIncludes.allowedSet.insert(resolvedDottedPath);
-			}
-			else detectedIncludes.allowedSet.insert(dottedPath);
-		}
-		else
-		{
-			// resolution forbidden
-			result.hasForbidden = true;
-			auto& cppIncludes = result.getIncludes(f.isSpecified, f.cppDottedPath);
-			cppIncludes.forbiddenSet.insert(utils::file::pathToDotted(resolvedIncludePath));
-		}
+		if (isAllowed) cppIncludes.allowedSet.insert(resolvedIncludePath);
+		else cppIncludes.forbiddenSet.insert(resolvedIncludePath);
 	}
 
 	static bool handleCurrentFolderResolution(const std::string& detectedIncludeStr,
 		const Config& config,
 		const FileInfo& fileInfo,
-		Output& result,
-		DetectedIncludes& detectedIncludes)
+		ResolutionDetectedIncludes& cppIncludes,
+		SourceToHeaderMap& sourceToHeaderMap)
 	{
 		const auto& f = fileInfo; // shortcut
 
@@ -90,7 +83,7 @@ private:
 		if (!fs::exists(currentFolderIncludePath)) return false;
 		// include resolved
 
-		handleResolvedInclude(currentFolderIncludePath, config, fileInfo, result, detectedIncludes);
+		handleResolvedInclude(currentFolderIncludePath, config, fileInfo, cppIncludes, sourceToHeaderMap);
 		return true;
 	}
 
@@ -109,8 +102,8 @@ private:
 	static bool handleIncludePathListResolution(const std::string& detectedIncludeStr,
 		const Config& config,
 		const FileInfo& fileInfo,
-		Output& result,
-		DetectedIncludes& detectedIncludes)
+		ResolutionDetectedIncludes& cppIncludes,
+		SourceToHeaderMap& sourceToHeaderMap)
 	{
 		const fs::path detectedIncludePath(detectedIncludeStr);
 
@@ -119,15 +112,15 @@ private:
 		// include resolved
 
 		const fs::path resolvedIncludePath = *resolutionIncludePath / detectedIncludePath;
-		handleResolvedInclude(resolvedIncludePath, config, fileInfo, result, detectedIncludes);
+		handleResolvedInclude(resolvedIncludePath, config, fileInfo, cppIncludes, sourceToHeaderMap);
 		return true;
 	}
 
 	static bool handleStdResolution(const std::string& detectedIncludeStr,
 		const Config& config,
 		const FileInfo& /* fileInfo */,
-		Output& /* result */,
-		DetectedIncludes& detectedIncludes)
+		ResolutionDetectedIncludes& cppIncludes,
+		SourceToHeaderMap& /* sourceToHeaderMap */)
 	{
 		for (const auto& stdIncludePath : config.stdResolutionIncludePathList)
 		{
@@ -138,7 +131,7 @@ private:
 			if (!config.bKeepStdInOutput) return true;
 			// keep std in output
 
-			detectedIncludes.allowedSet.insert(detectedIncludeStr);
+			cppIncludes.allowedSet.insert(detectedIncludeStr);
 			return true;
 		}
 		return false;
@@ -147,12 +140,10 @@ private:
 	static bool handleUnresolved(const std::string& detectedIncludeStr,
 		const Config& config,
 		const FileInfo& fileInfo,
-		Output& result,
-		DetectedIncludes& /* detectedIncludes */)
+		ResolutionDetectedIncludes& cppIncludes,
+		SourceToHeaderMap& /* sourceToHeaderMap */)
 	{
 		const auto& f = fileInfo; // shortcut
-
-		auto& cppInclude = result.getIncludes(f.isSpecified, f.cppDottedPath);
 
 		// current folder used for better display
 		const fs::path currentFolderIncludePath = f.cppPath->parent_path() / fs::path(detectedIncludeStr);
@@ -167,8 +158,7 @@ private:
 		if (isExcluded) return false;
 		// unresolved not excluded
 
-		result.hasUnresolved = true;
-		cppInclude.unresolvedSet.insert(utils::file::pathToDotted(currentFolderIncludePath));
+		cppIncludes.unresolvedSet.insert(currentFolderIncludePath);
 		return false;
 	}
 };

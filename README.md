@@ -13,7 +13,7 @@ C++ include detection: scan globs, resolve `#include` directives, and output the
 - Declare allowed includes (`-a`) for dependency rules
 - Output as **JSON** or **D2**, to files and/or stdout
 - Track allowed, forbidden, and unresolved include relationships
-- Optional grouping by glob (`-g`), sibling-style links (`--brother-links`), and standard library headers in output (`--std`)
+- Optional grouping by glob (`-g`), source/header pairing (`--group-source-header`), sibling-style links (`--brother-links`), and standard library headers in output (`--std`)
 
 ## Planned Features
 
@@ -261,6 +261,62 @@ CppDepScan sample/src -i sample/include --brother-links -o result/brother_links.
 
 </details>
 
+### Group source with header (`--group-source-header`)
+
+```bash
+CppDepScan sample/src -i sample/include --group-source-header -o result/group_source_header.d2
+```
+
+<details>
+<summary>D2 output</summary>
+
+```d2
+# specified include list:
+
+# files:
+sample.src."main.cpp"
+sample.src.app.app
+sample.src.legacy
+sample.src.lib.private
+sample.src.lib.public
+sample.src.main
+
+# allowed:
+sample.src.legacy -> sample.src.app.app
+sample.src.main -> sample.include.extra
+sample.src.main -> sample.src.app.app
+sample.src.main -> sample.src.lib.private
+sample.src.main -> sample.src.lib.public
+
+# forbidden:
+
+# unresolved:
+sample.src."nonexistent.h".class: unresolved
+sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
+```
+
+</details>
+
+<details>
+<summary>Rendered image</summary>
+
+![group source header](result/group_source_header.png)
+
+</details>
+
+Works well with `--brother-links`:
+
+```bash
+CppDepScan sample/src -i sample/include --group-source-header --brother-links -o result/group_source_header_brother_links.d2
+```
+
+<details>
+<summary>Rendered image</summary>
+
+![group source header with brother links](result/group_source_header_brother_links.png)
+
+</details>
+
 ### Standard library in output (`--std`)
 
 ```bash
@@ -440,9 +496,9 @@ sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
 
 </details>
 
-### Group ignored for forbidden or unresolved
+### Group ignored for forbidden, unresolved or unspecified
 
-When an include is forbidden or unresolved, the edge is still shown from the specified file; grouping does not attach it to the group node.
+When an include is forbidden, unresolved or unspecified, the edge is still shown from the specified file; grouping does not attach it to the group node.
 
 ```bash
 CppDepScan sample/src -g sample/src -i sample/include -a sample/src/main.cpp sample/src -a sample/src/app sample/src/app -a sample/src/lib sample/src/lib -o result/ignored_group.d2
@@ -483,13 +539,14 @@ CppDepScan [options] <scan_glob> [scan_glob ...]
 
 **Output**
 
-| Option                 | Description                                                             |
-| ---------------------- | ----------------------------------------------------------------------- |
-| `-o <file>`            | Write output to file; may be repeated. `.json` → JSON, otherwise D2.    |
-| `--json`               | Use JSON for stdout (default when no `-o`: D2).                         |
-| `--brother-links`      | Make links always between elements in the same folder (default: false). |
-| `--std`                | Include standard library headers in output (default: false).            |
-| `-g`, `--group <glob>` | Gather files by group glob; may be repeated.                            |
+| Option                  | Description                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------- |
+| `-o <file>`             | Write output to file; may be repeated. `.json` → JSON, otherwise D2.                         |
+| `--json`                | Use JSON for stdout (default when no `-o`: D2).                                              |
+| `--brother-links`       | Make links always between elements in the same folder (default: false).                      |
+| `--group-source-header` | Group each source file with its matching header (same base name) in output (default: false). |
+| `--std`                 | Include standard library headers in output (default: false).                                 |
+| `-g`, `--group <glob>`  | Gather files by group glob; may be repeated.                                                 |
 
 - **JSON**: `specifiedIncludeMap` — object mapping each source file (dotted path) to an object with `allowedSet`, `forbiddenSet`, `unresolvedSet`; `unspecifiedIncludeMap` — same shape (e.g. headers only).
 - **D2**: **# specified include list** / **# unspecified include list** — for each file, **# allowed:** edges `from -> to`, **# forbidden:** edges, **# unresolved:** commented-out edges for unresolved includes.

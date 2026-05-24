@@ -45,20 +45,20 @@ vars: {
 # files:
 sample.src
 sample.src."main.cpp"
+sample.src.app.app
+sample.src.legacy
+sample.src.lib.private
+sample.src.lib.public
+sample.src.main
 
 # allowed:
+sample.src -> sample.include
+sample.src.legacy -> sample.src.app
+sample.src.main -> sample.src.app
+sample.src.main -> sample.src.lib
 
 # forbidden:
-sample.src."main.cpp" -> sample.include."extra.hpp": {class: forbidden}
 
 # unresolved:
 sample.src."nonexistent.h".class: unresolved
 sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
-
-# unspecified include list:
-
-# files:
-sample.src."legacy.c".class: unspecified
-
-# resolved:
-sample.src."legacy.c" -> sample.src.app."app.hpp"

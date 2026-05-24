@@ -29,6 +29,7 @@ public:
 			}
 			else if (pattern[i] == '*' && !isLast && pattern[i + 1] == '*')
 			{
+				segmentList.emplace_back("\"**\"");
 				if (bSuffix)
 					throw std::runtime_error("Invalid glob pattern: '" + pattern + "'. Multiple '**' wildcards are not allowed.");
 				++i;
