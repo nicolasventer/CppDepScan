@@ -1,24 +1,69 @@
 #pragma once
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
+#include <cstdlib>
+#include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "./yyjson/yyjson.h"
 
 #ifdef IMPORT_YYJSON_IMPL
-#include "./yyjson/yyjson.c"
+#include "./yyjson/yyjson.c" // NOLINT(bugprone-suspicious-include)
 #endif
 
 enum class EPrettyPrint : uint8_t
 {
-	NONE = YYJSON_WRITE_NOFLAG,
-	PRETTY = YYJSON_WRITE_PRETTY,
-	PRETTY_TWO_SPACES = YYJSON_WRITE_PRETTY_TWO_SPACES
+	None = YYJSON_WRITE_NOFLAG,
+	Pretty = YYJSON_WRITE_PRETTY,
+	PrettyTwoSpaces = YYJSON_WRITE_PRETTY_TWO_SPACES
 };
 
-// Reading JSON
+namespace EReadFlag // NOLINT(readability-identifier-naming)
+{
+	enum Type : uint8_t // NOLINT(readability-identifier-naming)
+	{
+		None = YYJSON_READ_NOFLAG,
+		AllowTrailingCommas = YYJSON_READ_ALLOW_TRAILING_COMMAS,
+		AllowComments = YYJSON_READ_ALLOW_COMMENTS,
+		AllowCommentsAndTrailingCommas = AllowComments | AllowTrailingCommas,
+	};
+} // namespace EReadFlag
+
+// NOLINTBEGIN(google-explicit-constructor, hicpp-explicit-conversions, hicpp-no-malloc, cppcoreguidelines-no-malloc,
+// cppcoreguidelines-owning-memory, cppcoreguidelines-avoid-c-arrays)
+
+/**
+ * @brief Owns an immutable yyjson document parsed from a JSON string.
+ *
+ * @par Example
+ * @code{.cpp}
+ * struct Person {
+ *     std::string name;
+ *     int age;
+ *     std::vector<std::string> hobbies;
+ * };
+ *
+ * template <> Person fromJson(const ValueWrapper& doc) {
+ *     return Person{doc["name"], doc["age"], doc["hobbies"]};
+ * }
+ *
+ * const std::string json = R"({"name":"Alice","age":25,"hobbies":["reading","coding"]})";
+ * DocWrapper doc(json);
+ * ValueWrapper root = doc;
+ *
+ * Person p = root; // uses fromJson<Person> via implicit conversion
+ *
+ * std::string name = root["name"];
+ * int age = root["age"];
+ * std::vector<std::string> hobbies = root["hobbies"];
+ *
+ * std::string pretty = doc.toString(EPrettyPrint::Pretty);
+ * @endcode
+ */
 class DocWrapper
 {
 public:
@@ -83,9 +128,39 @@ public:
 				arr[i++] = static_cast<T>(elem);
 			}
 		}
+		template <typename T, typename U> operator std::map<T, U>() const
+		{
+			std::map<T, U> res;
+			if (yyjson_is_obj(val_))
+			{
+				yyjson_obj_iter iter = yyjson_obj_iter_with(val_);
+				yyjson_val *key, *val;
+				while ((key = yyjson_obj_iter_next(&iter)))
+				{
+					val = yyjson_obj_iter_get_val(key);
+					res[static_cast<T>(ValueWrapper(key, doc_))] = static_cast<U>(ValueWrapper(val, doc_));
+				}
+			}
+			return res;
+		}
+		template <typename T, typename U> operator std::vector<std::pair<T, U>>() const
+		{
+			std::vector<std::pair<T, U>> res;
+			if (yyjson_is_obj(val_))
+			{
+				yyjson_obj_iter iter = yyjson_obj_iter_with(val_);
+				yyjson_val *key, *val;
+				while ((key = yyjson_obj_iter_next(&iter)))
+				{
+					val = yyjson_obj_iter_get_val(key);
+					res.emplace_back({static_cast<T>(key), static_cast<U>(val)});
+				}
+			}
+			return res;
+		}
 		template <typename T> operator T() const; // Custom types: uses fromJson<T>
 		// Explicit conversion, second type is the intermediate type
-		template <typename TTo, typename TFrom> TTo as() const { return static_cast<TTo>(static_cast<TFrom>(*this)); }
+		template <typename TTo, typename TFrom> TTo internal_cast() const { return static_cast<TTo>(static_cast<TFrom>(*this)); }
 
 		// Object/array access
 		ValueWrapper operator[](const char* key) const { return {yyjson_obj_get(val_, key), doc_}; }
@@ -94,7 +169,7 @@ public:
 
 		bool hasKey(const char* key) const { return yyjson_obj_get(val_, key) != nullptr; }
 
-		std::string toString(EPrettyPrint prettyPrint = EPrettyPrint::NONE) const
+		std::string toString(EPrettyPrint prettyPrint = EPrettyPrint::None) const
 		{
 			char* json = yyjson_val_write(val_, static_cast<uint32_t>(prettyPrint), nullptr);
 			std::string result(json);
@@ -108,8 +183,14 @@ public:
 
 	DocWrapper() = default;
 	// Parse JSON from string
-	DocWrapper(const char* data, size_t len) : doc(yyjson_read(data, len, 0)), root(yyjson_doc_get_root(doc)) {}
-	DocWrapper(const std::string& data) : doc(yyjson_read(data.c_str(), data.length(), 0)), root(yyjson_doc_get_root(doc)) {}
+	DocWrapper(const char* data, size_t len, EReadFlag::Type readFlag = EReadFlag::None) :
+		doc(yyjson_read(data, len, readFlag)), root(yyjson_doc_get_root(doc))
+	{
+	}
+	DocWrapper(const std::string& data, EReadFlag::Type readFlag = EReadFlag::None) :
+		doc(yyjson_read(data.c_str(), data.length(), readFlag)), root(yyjson_doc_get_root(doc))
+	{
+	}
 	DocWrapper(const DocWrapper&) = delete;
 	DocWrapper& operator=(const DocWrapper&) = delete;
 	DocWrapper(DocWrapper&& other) noexcept : doc(other.doc), root(other.root)
@@ -135,7 +216,7 @@ public:
 	}
 
 	operator ValueWrapper() const { return {root, doc}; }
-	std::string toString(EPrettyPrint prettyPrint = EPrettyPrint::NONE) const
+	std::string toString(EPrettyPrint prettyPrint = EPrettyPrint::None) const
 	{
 		char* json = yyjson_write(doc, static_cast<uint32_t>(prettyPrint), nullptr);
 		std::string result(json);
@@ -147,7 +228,34 @@ public:
 	yyjson_val* root = nullptr;
 };
 
-// Writing JSON
+/**
+ * @brief Owns a mutable yyjson document for building or modifying JSON.
+ *
+ * @par Example
+ * @code{.cpp}
+ * struct Person {
+ *     std::string name;
+ *     int age;
+ *     std::vector<std::string> hobbies;
+ * };
+ *
+ * template <> void toJson(MutValueWrapper& value, const Person& p) {
+ *     value.set("name", p.name, "age", p.age, "hobbies", p.hobbies);
+ * }
+ *
+ * MutDocWrapper mutDoc;
+ * MutValueWrapper root = mutDoc;
+ *
+ * Person p{"Alice", 25, {"reading", "coding"}};
+ * root = p; // uses toJson<Person> via assignment
+ *
+ * root.set("score", 100);
+ * root.addMap(std::map<std::string, int>{{"bonus", 10}});
+ *
+ * std::string compact = mutDoc.toString();
+ * std::string pretty = mutDoc.toString(EPrettyPrint::Pretty);
+ * @endcode
+ */
 class MutDocWrapper
 {
 public:
@@ -163,12 +271,23 @@ public:
 			if (!yyjson_mut_is_obj(val_)) yyjson_mut_set_obj(val_);
 			return *this;
 		}
-
 		// Set key-value pairs (variadic). Does not override existing keys; add only.
 		template <typename... Args> void set(Args&&... args)
 		{
 			asObj();
 			setNoCheck(std::forward<Args>(args)...);
+		}
+		// Append all elements of a map to the object.
+		template <typename T, typename U> void addMap(const std::map<T, U>& valueList)
+		{
+			asObj();
+			for (const auto& [key, value] : valueList) setNoCheck(key.c_str(), value);
+		}
+		// Append all elements of a vector of pairs to the object.
+		template <typename T, typename U> void addMap(const std::vector<std::pair<T, U>>& valueList)
+		{
+			asObj();
+			for (const auto& [key, value] : valueList) setNoCheck(key.c_str(), value);
 		}
 
 		void setNoCheck() {}
@@ -199,19 +318,19 @@ public:
 		template <typename T> void addArray(const std::vector<T>& valueList)
 		{
 			asArr();
-			addArrayNoCheck(valueList);
+			for (const auto& value : valueList) addNoCheck(value);
 		}
 		// Append all elements of a std::array to the array.
 		template <typename T, size_t N> void addArray(const std::array<T, N>& valueList)
 		{
 			asArr();
-			addArrayNoCheck(valueList);
+			for (const auto& value : valueList) addNoCheck(value);
 		}
 		// Append all elements of a C-style array to the array.
 		template <typename T, size_t N> void addArray(const T (&valueList)[N])
 		{
 			asArr();
-			addArrayNoCheck(valueList);
+			for (size_t i = 0; i < N; ++i) addNoCheck(valueList[i]);
 		}
 
 		void addNoCheck() {}
@@ -226,20 +345,7 @@ public:
 			addNoCheck(std::forward<Args>(args)...);
 		}
 
-		template <typename T> void addArrayNoCheck(const std::vector<T>& valueList)
-		{
-			for (const auto& value : valueList) addNoCheck(value);
-		}
-		template <typename T, size_t N> void addArrayNoCheck(const std::array<T, N>& valueList)
-		{
-			for (const auto& value : valueList) addNoCheck(value);
-		}
-		template <typename T, size_t N> void addArrayNoCheck(const T (&valueList)[N])
-		{
-			for (size_t i = 0; i < N; ++i) addNoCheck(valueList[i]);
-		}
-
-		std::string toString(EPrettyPrint prettyPrint = EPrettyPrint::NONE) const
+		std::string toString(EPrettyPrint prettyPrint = EPrettyPrint::None) const
 		{
 			char* json = yyjson_mut_val_write(val_, static_cast<uint32_t>(prettyPrint), nullptr);
 			std::string result(json);
@@ -299,6 +405,16 @@ public:
 			val_ = createValue(value);
 			return *this;
 		}
+		template <typename T, typename U> MutValueWrapper& operator=(const std::map<T, U>& value)
+		{
+			val_ = createValue(value);
+			return *this;
+		}
+		template <typename T, typename U> MutValueWrapper& operator=(const std::vector<std::pair<T, U>>& value)
+		{
+			val_ = createValue(value);
+			return *this;
+		}
 		template <typename T> MutValueWrapper& operator=(const T& value)
 		{
 			toJson(*this, value);
@@ -345,6 +461,26 @@ public:
 			}
 			return arr;
 		}
+		template <typename T, typename U> yyjson_mut_val* createValue(const std::map<T, U>& value)
+		{
+			yyjson_mut_val* obj = yyjson_mut_obj(mutDoc_);
+			for (const auto& [key, value] : value)
+			{
+				yyjson_mut_val* val = createValue(value);
+				yyjson_mut_obj_add_val(mutDoc_, obj, key.c_str(), val);
+			}
+			return obj;
+		}
+		template <typename T, typename U> yyjson_mut_val* createValue(const std::vector<std::pair<T, U>>& value)
+		{
+			yyjson_mut_val* obj = yyjson_mut_obj(mutDoc_);
+			for (const auto& [key, value] : value)
+			{
+				yyjson_mut_val* val = createValue(value);
+				yyjson_mut_obj_add_val(mutDoc_, obj, key.c_str(), val);
+			}
+			return obj;
+		}
 		template <typename T> yyjson_mut_val* createValue(const T& value)
 		{
 			yyjson_mut_val* obj = yyjson_mut_obj(mutDoc_);
@@ -377,7 +513,7 @@ public:
 	}
 
 	operator MutValueWrapper() const { return {yyjson_mut_doc_get_root(mutDoc), mutDoc}; }
-	std::string toString(EPrettyPrint prettyPrint = EPrettyPrint::NONE) const
+	std::string toString(EPrettyPrint prettyPrint = EPrettyPrint::None) const
 	{
 		char* json = yyjson_mut_write(mutDoc, static_cast<uint32_t>(prettyPrint), nullptr);
 		std::string result(json);
@@ -388,8 +524,11 @@ public:
 	yyjson_mut_doc* mutDoc = nullptr;
 };
 
+// NOLINTEND(google-explicit-constructor, hicpp-explicit-conversions, hicpp-no-malloc, cppcoreguidelines-no-malloc,
+// cppcoreguidelines-owning-memory, cppcoreguidelines-avoid-c-arrays)
+
 // Custom type conversion (specialize fromJson and toJson for your types)
-template <typename T> T fromJson(const DocWrapper::ValueWrapper&)
+template <typename T> T fromJson(const DocWrapper::ValueWrapper& /* val */)
 {
 	static_assert(sizeof(T) == 0, "fromJson not implemented for this type");
 	return T();
@@ -397,7 +536,7 @@ template <typename T> T fromJson(const DocWrapper::ValueWrapper&)
 
 template <typename T> DocWrapper::ValueWrapper::operator T() const { return fromJson<T>(*this); }
 
-template <typename T> void toJson(MutDocWrapper::MutValueWrapper&, const T&)
+template <typename T> void toJson(MutDocWrapper::MutValueWrapper& /* value */, const T& /* data */)
 {
 	static_assert(sizeof(T) == 0, "toJson not implemented for this type");
 }
@@ -405,11 +544,15 @@ template <typename T> void toJson(MutDocWrapper::MutValueWrapper&, const T&)
 using ValueWrapper = DocWrapper::ValueWrapper;
 using MutValueWrapper = MutDocWrapper::MutValueWrapper;
 
-#define PRIMITIVE_CONVERSION(toType, fromType)                                                                                   \
-	template <> toType inline fromJson<toType>(const DocWrapper::ValueWrapper& val) { return val.as<toType, fromType>(); }       \
-	template <> void inline toJson(MutDocWrapper::MutValueWrapper& value, const toType& data)                                    \
-	{                                                                                                                            \
-		value = static_cast<fromType>(data);                                                                                     \
+// NOLINTNEXTLINE(cppcoreguidelines-macro-usage)
+#define PRIMITIVE_CONVERSION(toType, fromType)                                                \
+	template <>(toType) inline fromJson<toType>(const DocWrapper::ValueWrapper& val)          \
+	{                                                                                         \
+		return val.internal_cast<toType, fromType>();                                         \
+	}                                                                                         \
+	template <> void inline toJson(MutDocWrapper::MutValueWrapper& value, const toType& data) \
+	{                                                                                         \
+		value = static_cast<fromType>(data);                                                  \
 	}
 
 #ifdef USE_PRIMITIVE_CONVERSION

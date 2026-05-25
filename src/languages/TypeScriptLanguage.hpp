@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <filesystem>
 #include <iostream>
+#include <map>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -28,15 +29,18 @@ public:
 			if (fs::exists(candidatePath))
 			{
 				nodeModulesPath = candidatePath;
-				// TODO: handle compilerOptions.paths (pathListMap)
-				// "compilerOptions": {
-				//   "paths": {
-				//     "@/*": ["./src/*"]
-				//   }
-				// }
 				break;
 			}
 		}
+		std::string content;
+		if (!utils::file::tryReadFile(nodeModulesPath.parent_path() / "tsconfig.json", content)) return;
+		DocWrapper doc(content, EReadFlag::AllowCommentsAndTrailingCommas);
+		ValueWrapper val(doc);
+		if (!val.hasKey("compilerOptions")) return;
+		const auto& compilerOptions = val["compilerOptions"];
+		if (!compilerOptions.hasKey("paths")) return;
+		const auto paths = compilerOptions["paths"];
+		this->pathListMap = static_cast<std::map<std::string, std::vector<std::string>>>(paths);
 	}
 
 	[[nodiscard]] bool isHeaderFile(const fs::path& /* path */) const override { return false; }
@@ -128,7 +132,26 @@ public:
 			}
 		}
 
-		return moduleExistsInDirectory(path, foundPath);
+		if (moduleExistsInDirectory(path, foundPath)) return true;
+
+		for (const auto& [alias, pathList] : pathListMap)
+		{
+			std::string_view substr;
+			const std::string pathStr = path.string();
+			if (utils::str::bStartWith(pathStr, alias, &substr))
+			{
+				for (const auto& p : pathList)
+				{
+					const fs::path candidatePath = (fs::path(p) / substr).lexically_normal();
+					if (fs::exists(candidatePath))
+					{
+						foundPath = candidatePath;
+						return true;
+					}
+				}
+			}
+		}
+		return false;
 	}
 
 	[[nodiscard]] bool bStdModuleExist(const std::string& moduleStr, std::filesystem::path& foundPath) const override
@@ -187,4 +210,5 @@ private:
 	}
 
 	fs::path nodeModulesPath;
+	std::map<std::string, std::vector<std::string>> pathListMap; // key: alias, value: path list
 };
