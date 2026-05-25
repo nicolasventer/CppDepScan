@@ -122,8 +122,13 @@ public:
 
 	[[nodiscard]] bool bStdModuleExist(const std::string& moduleStr, std::filesystem::path& foundPath) const override
 	{
+		std::filesystem::path unusedFoundPath;
 		for (const auto& stdModulePath : stdModulePathList)
-			if (bNonStdModuleExist(fs::path(stdModulePath) / fs::path(moduleStr), foundPath)) return true;
+			if (bNonStdModuleExist(fs::path(stdModulePath) / fs::path(moduleStr), unusedFoundPath))
+			{
+				foundPath = moduleStr;
+				return true;
+			}
 		return false;
 	}
 
