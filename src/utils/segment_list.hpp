@@ -23,7 +23,7 @@ namespace utils::segment_list
 		for (size_t i = 0; i < length; ++i)
 		{
 			const auto& segment = segmentList[i];
-			if (segment.find('.') != std::string::npos) oss << '"' << segment << '"' << ".";
+			if (segment.find_first_of(".@") != std::string::npos) oss << '"' << segment << '"' << ".";
 			else oss << segment << ".";
 		}
 

@@ -26,9 +26,6 @@ struct Config
 	std::vector<fs::path> outputPathList;					   // empty implies stdout
 	std::vector<Glob> groupGlobList;
 
-	// automatically filled
-	std::vector<std::string> stdResolutionIncludePathList;
-
 	std::vector<std::string> commandLine;
 	std::string language = "cpp";
 
@@ -129,7 +126,7 @@ struct Config
 			std::cerr << "Unknown or unsupported language: " << language << "\n";
 			return false;
 		}
-		stdResolutionIncludePathList = languageImpl->getStdIncludePathList();
+		languageImpl->initialize(scanGlobList);
 		return true;
 	}
 

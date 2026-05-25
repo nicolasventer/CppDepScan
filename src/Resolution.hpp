@@ -81,22 +81,25 @@ private:
 
 		const fs::path currentFolderModulePath = f.importerPath->parent_path() / fs::path(detectedModuleStr);
 
-		if (!fs::exists(currentFolderModulePath)) return false;
+		fs::path foundPath;
+		if (!config.languageImpl->bNonStdModuleExist(currentFolderModulePath, foundPath)) return false;
 		// module resolved
 
-		handleResolvedModule(currentFolderModulePath, config, fileInfo, modules, sourceToHeaderMap);
+		handleResolvedModule(foundPath, config, fileInfo, modules, sourceToHeaderMap);
 		return true;
 	}
 
-	static const fs::path* getResolutionIncludePath(
-		const fs::path& detectedModulePath, const std::vector<fs::path>& resolutionIncludePathList)
+	static const bool getResolutionIncludePath(const fs::path& detectedModulePath,
+		const std::vector<fs::path>& resolutionIncludePathList,
+		const Config& config,
+		fs::path& foundPath)
 	{
 		for (const auto& resolutionIncludePath : resolutionIncludePathList)
 		{
-			const fs::path& newIncludePath = resolutionIncludePath / detectedModulePath;
-			if (fs::exists(newIncludePath)) return &resolutionIncludePath;
+			const fs::path candidatePath = resolutionIncludePath / detectedModulePath;
+			if (config.languageImpl->bNonStdModuleExist(candidatePath, foundPath)) return true;
 		}
-		return nullptr;
+		return false;
 	}
 
 	// returns true if the module is resolved
@@ -108,12 +111,11 @@ private:
 	{
 		const fs::path detectedModulePath(detectedModuleStr);
 
-		const auto* resolutionIncludePath = getResolutionIncludePath(detectedModulePath, config.resolutionIncludePathList);
-		if (resolutionIncludePath == nullptr) return false;
-		// module resolved
+		fs::path foundPath;
+		if (!getResolutionIncludePath(detectedModulePath, config.resolutionIncludePathList, config, foundPath)) return false;
 
-		const fs::path resolvedModulePath = *resolutionIncludePath / detectedModulePath;
-		handleResolvedModule(resolvedModulePath, config, fileInfo, modules, sourceToHeaderMap);
+		// module resolved
+		handleResolvedModule(foundPath, config, fileInfo, modules, sourceToHeaderMap);
 		return true;
 	}
 
@@ -123,19 +125,15 @@ private:
 		ResolutionDetectedModules& modules,
 		SourceToHeaderMap& /* sourceToHeaderMap */)
 	{
-		for (const auto& stdIncludePath : config.stdResolutionIncludePathList)
-		{
-			const fs::path& newIncludePath = stdIncludePath / fs::path(detectedModuleStr);
-			if (!fs::exists(newIncludePath)) continue;
-			// std module resolved
+		fs::path foundPath;
+		if (!config.languageImpl->bStdModuleExist(detectedModuleStr, foundPath)) return false;
+		// std module resolved
 
-			if (!config.bKeepStdInOutput) return true;
-			// keep std in output
+		if (!config.bKeepStdInOutput) return true;
+		// keep std in output
 
-			modules.allowedSet.insert(detectedModuleStr);
-			return true;
-		}
-		return false;
+		modules.allowedSet.insert(foundPath); // TODO: see if modules.allowedSet.insert(detectedModuleStr);
+		return true;
 	}
 
 	static bool handleUnresolved(const std::string& detectedModuleStr,

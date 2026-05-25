@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Glob.hpp"
 #include "ILanguage.hpp"
 #include "utils/str.hpp"
 #include <array>
@@ -23,10 +24,8 @@ namespace fs = std::filesystem;
 class CppLanguage : public ILanguage
 {
 public:
-	[[nodiscard]] std::vector<std::string> getStdIncludePathList() const override
+	void initialize(const std::vector<Glob>& /* scanGlobList */) override
 	{
-		std::vector<std::string> pathList;
-
 		const std::string compiler = "g++";
 
 		const fs::path tmp = fs::temp_directory_path() / "print_compiler_path.tmp";
@@ -41,7 +40,7 @@ public:
 		if (pipe == nullptr)
 		{
 			std::cerr << "Failed to run: " << compiler << "\n";
-			return pathList;
+			return;
 		}
 
 		std::ostringstream raw;
@@ -58,7 +57,7 @@ public:
 		if (startPos == std::string::npos)
 		{
 			std::cerr << "Could not find include search list in compiler output.\n";
-			return pathList;
+			return;
 		}
 
 		startPos += startMarker.size();
@@ -76,11 +75,9 @@ public:
 			if (i < line.size())
 			{
 				const std::string path = line.substr(i);
-				if (!path.empty()) pathList.push_back(fs::path(path).lexically_normal().string());
+				if (!path.empty()) stdModulePathList.push_back(fs::path(path).lexically_normal().string());
 			}
 		}
-
-		return pathList;
 	}
 
 	[[nodiscard]] bool isHeaderFile(const fs::path& path) const override
@@ -112,4 +109,24 @@ public:
 		detectedModuleStr = std::string(substr.substr(startPos + 1, endPos - startPos - 1));
 		return true;
 	}
+
+	[[nodiscard]] bool bNonStdModuleExist(const fs::path& path, std::filesystem::path& foundPath) const override
+	{
+		if (fs::exists(path))
+		{
+			foundPath = path;
+			return true;
+		}
+		return false;
+	}
+
+	[[nodiscard]] bool bStdModuleExist(const std::string& moduleStr, std::filesystem::path& foundPath) const override
+	{
+		for (const auto& stdModulePath : stdModulePathList)
+			if (bNonStdModuleExist(fs::path(stdModulePath) / fs::path(moduleStr), foundPath)) return true;
+		return false;
+	}
+
+private:
+	std::vector<std::string> stdModulePathList;
 };

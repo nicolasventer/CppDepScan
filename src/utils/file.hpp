@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cstddef>
 #include <filesystem>
+#include <fstream>
+#include <ios>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -26,7 +28,7 @@ namespace utils::file
 		{
 			if (segment == ".") continue;
 			const auto& segmentStr = segment.string();
-			if (segmentStr.find('.') != std::string::npos) oss << '"' << segmentStr << '"' << ".";
+			if (segmentStr.find_first_of(".@") != std::string::npos) oss << '"' << segmentStr << '"' << ".";
 			else oss << segmentStr << ".";
 		}
 
@@ -40,6 +42,20 @@ namespace utils::file
 		for (size_t i = 0; i < minLength; ++i)
 			if (segmentListA[i] != segmentListB[i]) return i;
 		return minLength;
+	}
+
+	inline bool tryReadFile(const fs::path& path, std::string& content)
+	{
+		std::ifstream file(path, std::ios::binary);
+		if (!file) return false;
+
+		file.seekg(0, std::ios::end);
+		const auto size = file.tellg();
+		file.seekg(0, std::ios::beg);
+
+		content.resize(static_cast<size_t>(size));
+		file.read(content.data(), static_cast<std::streamsize>(size));
+		return true;
 	}
 
 } // namespace utils::file

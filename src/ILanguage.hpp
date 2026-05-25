@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Glob.hpp"
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -13,8 +14,10 @@ struct ILanguage
 	ILanguage& operator=(ILanguage&&) noexcept = default;
 	ILanguage& operator=(const ILanguage&) = delete;
 
-	[[nodiscard]] virtual std::vector<std::string> getStdIncludePathList() const = 0;
+	virtual void initialize(const std::vector<Glob>& scanGlobList) = 0;
 	[[nodiscard]] virtual bool isHeaderFile(const std::filesystem::path& path) const = 0;
 	[[nodiscard]] virtual bool isSourceFile(const std::filesystem::path& path) const = 0;
 	[[nodiscard]] virtual bool tryParseImportLine(const std::string& line, std::string& detectedModuleStr) const = 0;
+	[[nodiscard]] virtual bool bNonStdModuleExist(const std::filesystem::path& path, std::filesystem::path& foundPath) const = 0;
+	[[nodiscard]] virtual bool bStdModuleExist(const std::string& moduleStr, std::filesystem::path& foundPath) const = 0;
 };

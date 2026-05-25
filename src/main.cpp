@@ -1,3 +1,7 @@
+#define IMPORT_YYJSON_IMPL
+#include "libs/yyjsonWrap/yyjsonWrap.hpp"
+#undef IMPORT_YYJSON_IMPL
+
 #include "Config.hpp"
 #include "FileInfo.hpp"
 #include "Output.hpp"
@@ -57,7 +61,8 @@ template <> OStreamAdapter toJsonOutput<Output>(const std::string& indent, const
 				// std::make_pair("commandLine", &value.commandLine), // TODO: add commandLine to JSON output
 				std::make_pair("specifiedModulesMap", &value.specifiedModulesMap),
 				std::make_pair("unspecifiedModulesMap", &value.unspecifiedModulesMap),
-				// std::make_pair("importerAllowInfoMap", &value.importerAllowInfoMap), // TODO: add importerAllowInfoMap to JSON output
+				// std::make_pair("importerAllowInfoMap", &value.importerAllowInfoMap), // TODO: add importerAllowInfoMap to JSON
+				// output
 			};
 
 			os << toJsonObject(indent,
