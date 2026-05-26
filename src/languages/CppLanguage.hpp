@@ -110,7 +110,8 @@ public:
 		return true;
 	}
 
-	[[nodiscard]] bool bNonStdModuleExist(const fs::path& path, std::filesystem::path& foundPath) const override
+	[[nodiscard]] bool bNonStdModuleExist(
+		const fs::path& path, const std::string& /* detectedModuleStr */, std::filesystem::path& foundPath) const override
 	{
 		if (fs::exists(path))
 		{
@@ -124,7 +125,7 @@ public:
 	{
 		std::filesystem::path unusedFoundPath;
 		for (const auto& stdModulePath : stdModulePathList)
-			if (bNonStdModuleExist(fs::path(stdModulePath) / fs::path(moduleStr), unusedFoundPath))
+			if (bNonStdModuleExist(fs::path(stdModulePath) / moduleStr, moduleStr, unusedFoundPath))
 			{
 				foundPath = moduleStr;
 				return true;

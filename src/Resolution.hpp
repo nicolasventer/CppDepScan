@@ -79,25 +79,25 @@ private:
 	{
 		const auto& f = fileInfo; // shortcut
 
-		const fs::path currentFolderModulePath = f.importerPath->parent_path() / fs::path(detectedModuleStr);
+		const fs::path currentFolderModulePath = (f.importerPath->parent_path() / fs::path(detectedModuleStr)).lexically_normal();
 
 		fs::path foundPath;
-		if (!config.languageImpl->bNonStdModuleExist(currentFolderModulePath, foundPath)) return false;
+		if (!config.languageImpl->bNonStdModuleExist(currentFolderModulePath, detectedModuleStr, foundPath)) return false;
 		// module resolved
 
 		handleResolvedModule(foundPath, config, fileInfo, modules, sourceToHeaderMap);
 		return true;
 	}
 
-	static const bool getResolutionIncludePath(const fs::path& detectedModulePath,
+	static bool getResolutionIncludePath(const std::string& detectedModuleStr,
 		const std::vector<fs::path>& resolutionIncludePathList,
 		const Config& config,
 		fs::path& foundPath)
 	{
 		for (const auto& resolutionIncludePath : resolutionIncludePathList)
 		{
-			const fs::path candidatePath = resolutionIncludePath / detectedModulePath;
-			if (config.languageImpl->bNonStdModuleExist(candidatePath, foundPath)) return true;
+			const fs::path candidatePath = resolutionIncludePath / detectedModuleStr;
+			if (config.languageImpl->bNonStdModuleExist(candidatePath, detectedModuleStr, foundPath)) return true;
 		}
 		return false;
 	}
@@ -109,10 +109,9 @@ private:
 		ResolutionDetectedModules& modules,
 		SourceToHeaderMap& sourceToHeaderMap)
 	{
-		const fs::path detectedModulePath(detectedModuleStr);
 
 		fs::path foundPath;
-		if (!getResolutionIncludePath(detectedModulePath, config.resolutionIncludePathList, config, foundPath)) return false;
+		if (!getResolutionIncludePath(detectedModuleStr, config.resolutionIncludePathList, config, foundPath)) return false;
 
 		// module resolved
 		handleResolvedModule(foundPath, config, fileInfo, modules, sourceToHeaderMap);

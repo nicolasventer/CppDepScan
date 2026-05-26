@@ -90,6 +90,17 @@ public:
 			if (!segment.isLiteral()) break;
 		}
 		return result;
+
+		// std::ostringstream oss;
+		// for (const auto& segment : prefixGlobSegmentList)
+		// {
+		// 	if (segment.getLiteral().empty()) break;
+		// 	oss << segment.getLiteral() << "/";
+		// 	if (!segment.isLiteral()) break;
+		// }
+		// std::string result = oss.str();
+		// result.pop_back();
+		// return std::filesystem::path{result};
 	}
 
 	[[nodiscard]] const std::vector<std::string>& getSegmentList() const { return segmentList; }

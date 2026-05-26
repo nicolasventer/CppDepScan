@@ -18,6 +18,7 @@ struct ILanguage
 	[[nodiscard]] virtual bool isHeaderFile(const std::filesystem::path& path) const = 0;
 	[[nodiscard]] virtual bool isSourceFile(const std::filesystem::path& path) const = 0;
 	[[nodiscard]] virtual bool tryParseImportLine(const std::string& line, std::string& detectedModuleStr) const = 0;
-	[[nodiscard]] virtual bool bNonStdModuleExist(const std::filesystem::path& path, std::filesystem::path& foundPath) const = 0;
+	[[nodiscard]] virtual bool bNonStdModuleExist(
+		const std::filesystem::path& path, const std::string& detectedModuleStr, std::filesystem::path& foundPath) const = 0;
 	[[nodiscard]] virtual bool bStdModuleExist(const std::string& moduleStr, std::filesystem::path& foundPath) const = 0;
 };
