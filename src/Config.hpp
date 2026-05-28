@@ -33,6 +33,9 @@ struct Config
 	bool bUseJsonForStdOutput = false; // default: D2 lang
 	bool bBrotherLinks = false;		   // default: false
 	bool bGroupSourceHeader = false;   // default: false
+	bool bExcludeUnresolved = false;   // default: false
+	bool bExcludeForbidden = false;	   // default: false
+	bool bExcludeUnspecified = false;  // default: false
 	bool bHelp = false;
 
 	std::shared_ptr<ILanguage> languageImpl;
@@ -93,6 +96,9 @@ struct Config
 			else if (a == "--json") bUseJsonForStdOutput = true;
 			else if (a == "--brother-links") bBrotherLinks = true;
 			else if (a == "--group-source-header") bGroupSourceHeader = true;
+			else if (a == "--exclude-unresolved") bExcludeUnresolved = true;
+			else if (a == "--exclude-forbidden") bExcludeForbidden = true;
+			else if (a == "--exclude-unspecified") bExcludeUnspecified = true;
 			else if ((a == "-g" || a == "--group") && i + 1 < argc)
 			{
 				const std::string& path = argList[++i];

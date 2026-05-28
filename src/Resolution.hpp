@@ -68,7 +68,7 @@ private:
 		const bool isAllowed = f.allowedToList == nullptr
 							|| Glob::getGlobThatMatchesSegmentList(resolvedModuleSegmentList, *f.allowedToList) != nullptr;
 		if (isAllowed) modules.allowedSet.insert(resolvedModulePath);
-		else modules.forbiddenSet.insert(resolvedModulePath);
+		else if (!config.bExcludeForbidden) modules.forbiddenSet.insert(resolvedModulePath);
 	}
 
 	static bool handleCurrentFolderResolution(const std::string& detectedModuleStr,
@@ -141,6 +141,8 @@ private:
 		ResolutionDetectedModules& modules,
 		SourceToHeaderMap& /* sourceToHeaderMap */)
 	{
+		if (config.bExcludeUnresolved) return false;
+
 		const auto& f = fileInfo; // shortcut
 
 		// current folder used for better display

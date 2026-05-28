@@ -227,6 +227,7 @@ static Output getOutput(const Config& config)
 
 		const FileInfo fileInfo(importerPathList[i], config);
 
+		if (config.bExcludeUnspecified && !fileInfo.isSpecified) continue;
 		auto& modules = resolution.getModules(fileInfo.isSpecified, importerPathList[i]);
 
 		std::ifstream ifs(importerPathList[i]);
@@ -265,11 +266,14 @@ static void usage(const char* prog)
 		<< "  -a, --allowed <from> <to>   Specify that <from> may include <to>; <from> and <to> are globs; may be repeated\n"
 		<< "\n"
 		<< "Output:\n"
-		<< "  -o <file>                   Write output to file; may be repeated; .json -> JSON, else D2\n"
+		<< "  -o <file>                    Write output to file; may be repeated; .json -> JSON, else D2\n"
 		<< "  --json                       Use JSON for stdout (default: D2)\n"
 		<< "  --std                        Include standard library headers in output (default: false)\n"
 		<< "  --brother-links              Make links always between elements in the same folder (default: false)\n"
 		<< "  --group-source-header        Group source with its corresponding header file (default: false)\n"
+		<< "  --exclude-unresolved           Exclude unresolved modules from output (default: false)\n"
+		<< "  --exclude-forbidden            Exclude forbidden modules from output (default: false)\n"
+		<< "  --exclude-unspecified          Exclude unspecified modules from output (default: false)\n"
 		<< "  -g, --group <glob>           Gather files by group glob; may be repeated\n"
 		<< "\n"
 		<< "Language:\n"

@@ -1,0 +1,65 @@
+# CppDepScan sample/src -I sample/include --exclude-unresolved -o result/modules_exclude_unresolved.d2
+
+classes: {
+  forbidden: {
+    style: {
+      stroke: "red"
+    }
+  }
+  unspecified: {
+    style: {
+      stroke: "orange"
+      fill: "orange"
+    }
+  }
+  unresolved: {
+    style: {
+      stroke: "gray"
+      fill: "gray"
+    }
+  }
+}
+vars: {
+  d2-legend: {
+    a: {
+      label: Specified
+    }
+    b: Unspecified {
+      label: Unspecified
+      class: unspecified
+    }
+    c: Unresolved {
+      label: Unresolved
+      class: unresolved
+    }
+    a -> b: Allowed
+    a -> b: Forbidden {
+      class: forbidden
+    }
+    a -> b: Unresolved {
+      class: unresolved
+    }
+  }
+}
+
+# specified importer list:
+
+# files:
+sample.src."legacy.c"
+sample.src."main.cpp"
+sample.src.app."app.cpp"
+sample.src.app."app.hpp"
+sample.src.lib."private.hpp"
+sample.src.lib."public.hpp"
+
+# allowed:
+sample.src."legacy.c" -> sample.src.app."app.hpp"
+sample.src."main.cpp" -> sample.include."extra.hpp"
+sample.src."main.cpp" -> sample.src.app."app.hpp"
+sample.src."main.cpp" -> sample.src.lib."private.hpp"
+sample.src."main.cpp" -> sample.src.lib."public.hpp"
+sample.src.app."app.cpp" -> sample.src.app."app.hpp"
+
+# forbidden:
+
+# unresolved:

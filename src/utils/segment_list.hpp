@@ -1,5 +1,6 @@
 #pragma once
 
+#include "./special.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <sstream>
@@ -23,7 +24,7 @@ namespace utils::segment_list
 		for (size_t i = 0; i < length; ++i)
 		{
 			const auto& segment = segmentList[i];
-			if (segment.find_first_of(".@") != std::string::npos) oss << '"' << segment << '"' << ".";
+			if (utils::special::isSpecial(segment)) oss << '"' << segment << '"' << ".";
 			else oss << segment << ".";
 		}
 

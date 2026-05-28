@@ -24,6 +24,7 @@ CLI flags such as `-I` (import paths) and `-A` (allowed rules) still refer to th
 - Output as **JSON** or **D2**, to files and/or stdout
 - Track allowed, forbidden, and unresolved importer -> module relationships
 - Optional grouping by glob (`-g`), source/header pairing (`--group-source-header`), sibling-style links (`--brother-links`), and standard library headers in output (`--std`)
+- Optional filtering of unresolved, forbidden, or unspecified modules from output (`--exclude-unresolved`, `--exclude-forbidden`, `--exclude-unspecified`)
 
 ## Planned Features
 
@@ -337,7 +338,7 @@ Works well with `--brother-links`:
 CppDepScan sample/src -I sample/include --group-source-header --brother-links -o result/group_source_header_brother_links.d2
 ```
 
-<details>
+<details open>
 <summary>Rendered image</summary>
 
 ![group source header with brother links](result/group_source_header_brother_links.png)
@@ -424,9 +425,127 @@ CppDepScan sample/src -I sample/include -o result/import.json
 
 </details>
 
+### Exclude unresolved from output (`--exclude-unresolved`)
+
+```bash
+CppDepScan sample/src -I sample/include --exclude-unresolved -o result/modules_exclude_unresolved.d2
+```
+
+<details>
+<summary>D2 output (unresolved section empty)</summary>
+
+```d2
+# specified importer list:
+
+# files:
+sample.src."legacy.c"
+sample.src."main.cpp"
+sample.src.app."app.cpp"
+sample.src.app."app.hpp"
+sample.src.lib."private.hpp"
+sample.src.lib."public.hpp"
+
+# allowed:
+sample.src."legacy.c" -> sample.src.app."app.hpp"
+sample.src."main.cpp" -> sample.include."extra.hpp"
+sample.src."main.cpp" -> sample.src.app."app.hpp"
+sample.src."main.cpp" -> sample.src.lib."private.hpp"
+sample.src."main.cpp" -> sample.src.lib."public.hpp"
+sample.src.app."app.cpp" -> sample.src.app."app.hpp"
+
+# forbidden:
+
+# unresolved:
+```
+
+</details>
+
+<details>
+<summary>Rendered image</summary>
+
+![exclude unresolved from output](result/modules_exclude_unresolved.png)
+
+</details>
+
+### Exclude forbidden from output (`--exclude-forbidden`)
+
+```bash
+CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app --exclude-forbidden -o result/modules_exclude_forbidden.d2
+```
+
+<details>
+<summary>D2 output (forbidden section empty)</summary>
+
+```d2
+# specified importer list:
+
+# files:
+sample.src."legacy.c"
+sample.src."main.cpp"
+
+# allowed:
+sample.src."legacy.c" -> sample.src.app."app.hpp"
+sample.src."main.cpp" -> sample.include."extra.hpp"
+sample.src."main.cpp" -> sample.src.app."app.hpp"
+
+# forbidden:
+
+# unresolved:
+sample.src."nonexistent.h".class: unresolved
+sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
+```
+
+</details>
+
+<details>
+<summary>Rendered image</summary>
+
+![exclude forbidden from output](result/modules_exclude_forbidden.png)
+
+</details>
+
+### Exclude unspecified from output (`--exclude-unspecified`)
+
+```bash
+CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app --exclude-unspecified -o result/modules_exclude_unspecified.d2
+```
+
+<details>
+<summary>D2 output (only specified importers)</summary>
+
+```d2
+# specified importer list:
+
+# files:
+sample.src."legacy.c"
+sample.src."main.cpp": main.cpp {tooltip: part of "sample/src/main.cpp", can include: "sample/src/app", "sample/include"}
+
+# allowed:
+sample.src."legacy.c" -> sample.src.app."app.hpp"
+sample.src."main.cpp" -> sample.include."extra.hpp"
+sample.src."main.cpp" -> sample.src.app."app.hpp"
+
+# forbidden:
+sample.src."main.cpp" -> sample.src.lib."private.hpp": {class: forbidden}
+sample.src."main.cpp" -> sample.src.lib."public.hpp": {class: forbidden}
+
+# unresolved:
+sample.src."nonexistent.h".class: unresolved
+sample.src."main.cpp" -> sample.src."nonexistent.h": {class: unresolved}
+```
+
+</details>
+
+<details>
+<summary>Rendered image</summary>
+
+![exclude unspecified from output](result/modules_exclude_unspecified.png)
+
+</details>
+
 ### Exclude unresolved path (bad practice)
 
-Excluding a path that is only ever seen as unresolved hides the missing module from the graph.
+Excluding a scan glob (`-E`) for a path that is only ever seen as unresolved hides the missing module from the graph.
 
 ```bash
 CppDepScan sample -E sample/src/extra.hpp -o result/exclude_unresolved.d2
@@ -580,10 +699,14 @@ CppDepScan [options] <scan_glob> [scan_glob ...]
 | `--group-source-header` | Group each source file with its matching header (same base name) in output (default: false). |
 | `--std`                 | Include standard library headers in output (default: false).                                 |
 | `-g`, `--group <glob>`  | Gather files by group glob; may be repeated.                                                 |
+| `--exclude-unresolved`  | Omit unresolved modules from output (default: false).                                        |
+| `--exclude-forbidden`   | Omit forbidden modules from output (default: false).                                         |
+| `--exclude-unspecified` | Skip importers without a matching `-A` rule (default: false).                                |
 
 - **JSON**: `specifiedModulesMap` — object mapping each importer (dotted path) to an object with `allowedSet`, `forbiddenSet`, `unresolvedSet`; `unspecifiedModulesMap` — same shape (e.g. importers without an allowed rule).
 - **D2**: **# specified importer list** / **# unspecified importer list** — for each importer, **# allowed:** edges `importer -> module`, **# forbidden:** edges, **# unresolved:** edges for unresolved modules.
-- **Exit status**: The process exits with `EXIT_SUCCESS` only if all modules are resolved and allowed (true if no `-A` is given) and all importers are specified (true if no `-A` is given); otherwise it exits with `EXIT_FAILURE`.
+- **Output filters** (`--exclude-*`): hide categories from the report without changing how files are scanned, except `--exclude-unspecified`, which skips parsing for importers with no `-A` rule.
+- **Exit status**: The process exits with `EXIT_SUCCESS` only when the output has no unresolved modules and no unspecified importers (both vacuously true when no `-A` is given). Forbidden modules do not affect exit status. Use `--exclude-unresolved` or `--exclude-unspecified` to omit those from output and avoid failure for that reason.
 - **Glob syntax**: `*` matches within one path segment, `**` matches across segments.
   - **Note**: On Windows, **always single-quote glob patterns** in the command line (e.g., `'sample/src/*'`, `'sample/**/*.hpp'`) to prevent premature expansion or parsing errors.
 

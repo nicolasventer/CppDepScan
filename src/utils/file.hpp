@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utils/special.hpp"
 #include <algorithm>
 #include <cstddef>
 #include <filesystem>
@@ -28,7 +29,7 @@ namespace utils::file
 		{
 			if (segment == ".") continue;
 			const auto& segmentStr = segment.string();
-			if (segmentStr.find_first_of(".@") != std::string::npos) oss << '"' << segmentStr << '"' << ".";
+			if (utils::special::isSpecial(segmentStr)) oss << '"' << segmentStr << '"' << ".";
 			else oss << segmentStr << ".";
 		}
 

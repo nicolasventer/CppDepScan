@@ -1,5 +1,6 @@
 #pragma once
 
+#include "utils/special.hpp"
 #include "utils/str.hpp"
 #include <algorithm>
 #include <cstddef>
@@ -157,8 +158,7 @@ private:
 
 		[[nodiscard]] std::string toDotted() const
 		{
-			const bool hasSpecials
-				= prefix.find_first_of(".@") != std::string::npos || suffix.find_first_of(".@") != std::string::npos;
+			const bool hasSpecials = utils::special::isSpecial(prefix) || utils::special::isSpecial(suffix);
 			std::ostringstream oss;
 			if (hasSpecials || bSuffix) oss << '"';
 			oss << prefix << (bSuffix ? "*" : "") << suffix;

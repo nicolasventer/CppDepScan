@@ -27,6 +27,11 @@ CppDepScan sample -I sample/include -E sample/include/extra.hpp -o result/exclud
 @REM group ignored for forbidden, unresolved or unspecified modules
 CppDepScan sample/src -g sample/src -I sample/include -A sample/src/main.cpp sample/src -A sample/src/app sample/src/app -A sample/src/lib sample/src/lib -o result/ignored_group.d2
 
+@REM exclude modules from output (--exclude-*)
+CppDepScan sample/src -I sample/include --exclude-unresolved -o result/modules_exclude_unresolved.d2
+CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app --exclude-forbidden -o result/modules_exclude_forbidden.d2
+CppDepScan sample/src -I sample/include -A sample/src/main.cpp sample/src/app -A sample/src/main.cpp sample/include -A sample/src/legacy.c sample/src/app --exclude-unspecified -o result/modules_exclude_unspecified.d2
+
 pushd result
 for %%f in (*.d2) do (
     d2 "%%f" "%%~nf.png"
